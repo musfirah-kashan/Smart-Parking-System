@@ -1,0 +1,50 @@
+
+{% extends "base.html" %}
+
+{% block title %}Home | Smart Parking{% endblock %}
+
+{% block content %}
+
+<section class="hero text-center">
+    <h1>Smart Parking System</h1>
+
+    <p class="lead mt-3">
+        Find and manage parking spaces efficiently.
+    </p>
+
+    <p>
+        Our system will help users find suitable parking slots
+        and help administrators manage parking operations.
+    </p>
+
+    <a href="#features" class="btn btn-parking mt-3">
+        Explore Features
+    </a>
+</section>
+
+<section id="features" class="row g-4 mt-5">
+
+    <div class="col-md-4">
+        <div class="feature-card">
+            <h4>Parking Slots</h4>
+            <p>View available and occupied parking spaces.</p>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="feature-card">
+            <h4>Smart Allocation</h4>
+            <p>Use data structures to help select a suitable slot.</p>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="feature-card">
+            <h4>Parking History</h4>
+            <p>Keep track of parking records and fees.</p>
+        </div>
+    </div>
+
+</section>
+
+{% endblock %}
