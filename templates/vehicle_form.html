@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if vehicle else 'Add' }} Vehicle{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 450px;">
+    <h3 class="mb-4">{{ 'Edit' if vehicle else 'Add' }} Vehicle</h3>
+
+    <form method="POST">
+        <div class="mb-3">
+            <label class="form-label">Vehicle Number</label>
+            <input type="text" name="vehicle_number" class="form-control"
+                   value="{{ vehicle.vehicle_number if vehicle else '' }}" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Vehicle Type</label>
+            <select name="vehicle_type" class="form-select" required>
+                {% for t in ['Car', 'Bike', 'Van', 'Truck'] %}
+                <option value="{{ t }}" {% if vehicle and vehicle.vehicle_type == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Save</button>
+    </form>
+
+    <a href="{{ url_for('vehicles') }}" class="btn btn-outline-secondary mt-3">Back to My Vehicles</a>
+</div>
+{% endblock %}
