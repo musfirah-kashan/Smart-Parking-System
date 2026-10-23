@@ -239,6 +239,137 @@ def delete_vehicle(vehicle_id):
     return redirect(url_for("vehicles"))
 
 
+# ---------------- PARKING SLOTS (Member 3) ----------------
+
+@app.route("/slots")
+@login_required
+def slots():
+    all_slots = ParkingSlot.query.order_by(ParkingSlot.slot_number).all()
+    return render_template("slots.html", slots=all_slots)
+
+@app.route("/slots/add", methods=["GET", "POST"])
+@admin_required
+def add_slot():
+    if request.method == "POST":
+        number = request.form["slot_number"].strip().upper()
+        stype = request.form["slot_type"].strip()
+        distance = request.form["distance"].strip()
+
+        if not number or not stype or not distance:
+            flash("Please fill all fields.", "danger")
+            return redirect(url_for("add_slot"))
+
+        try:
+            distance = float(distance)
+        except ValueError:
+            flash("Distance must be a number.", "danger")
+            return redirect(url_for("add_slot"))
+
+        if distance < 0:
+            flash("Distance cannot be negative.", "danger")
+            return redirect(url_for("add_slot"))
+
+        if ParkingSlot.query.filter_by(slot_number=number).first():
+            flash("This slot number already exists.", "danger")
+            return redirect(url_for("add_slot"))
+
+        slot = ParkingSlot(
+            slot_number=number,
+            slot_type=stype,
+            distance=distance,
+            status="available",
+        )
+        db.session.add(slot)
+        db.session.commit()
+
+        flash("Slot added successfully!", "success")
+        return redirect(url_for("slots"))
+
+    return render_template("slot_form.html", slot=None)
+
+@app.route("/slots/<int:slot_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_slot(slot_id):
+    slot = db.session.get(ParkingSlot, slot_id)
+    if slot is None:
+        abort(404)
+
+    if request.method == "POST":
+        number = request.form["slot_number"].strip().upper()
+        stype = request.form["slot_type"].strip()
+        distance = request.form["distance"].strip()
+
+        if not number or not stype or not distance:
+            flash("Please fill all fields.", "danger")
+            return redirect(url_for("edit_slot", slot_id=slot_id))
+
+        try:
+            distance = float(distance)
+        except ValueError:
+            flash("Distance must be a number.", "danger")
+            return redirect(url_for("edit_slot", slot_id=slot_id))
+
+        if distance < 0:
+            flash("Distance cannot be negative.", "danger")
+            return redirect(url_for("edit_slot", slot_id=slot_id))
+
+        existing = ParkingSlot.query.filter_by(slot_number=number).first()
+        if existing and existing.id != slot.id:
+            flash("This slot number already exists.", "danger")
+            return redirect(url_for("edit_slot", slot_id=slot_id))
+
+        slot.slot_number = number
+        slot.slot_type = stype
+        slot.distance = distance
+        db.session.commit()
+
+        flash("Slot updated successfully!", "success")
+        return redirect(url_for("slots"))
+
+    return render_template("slot_form.html", slot=slot)
+
+
+@app.route("/slots/<int:slot_id>/delete", methods=["POST"])
+@admin_required
+def delete_slot(slot_id):
+    slot = db.session.get(ParkingSlot, slot_id)
+    if slot is None:
+        abort(404)
+
+    if slot.status in ("occupied", "reserved"):
+        flash("Occupied or reserved slot cannot be deleted.", "danger")
+        return redirect(url_for("slots"))
+
+    db.session.delete(slot)
+    db.session.commit()
+
+    flash("Slot deleted.", "success")
+    return redirect(url_for("slots"))
+
+
+VALID_SLOT_STATUSES = ["available", "occupied", "reserved", "maintenance"]
+
+
+@app.route("/slots/<int:slot_id>/status", methods=["POST"])
+@admin_required
+def update_slot_status(slot_id):
+    slot = db.session.get(ParkingSlot, slot_id)
+    if slot is None:
+        abort(404)
+
+    new_status = request.form.get("status", "").strip().lower()
+
+    if new_status not in VALID_SLOT_STATUSES:
+        flash("Invalid status.", "danger")
+        return redirect(url_for("slots"))
+
+    slot.status = new_status
+    db.session.commit()
+
+    flash(f"Slot {slot.slot_number} is now {new_status}.", "success")
+    return redirect(url_for("slots"))
+
+
 # ---------------- ADMIN ----------------
 
 @app.route("/admin/users")
