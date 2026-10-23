@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-3">{{ "Edit Slot" if slot else "Add Slot" }}</h2>
+
+<form method="post" class="col-md-6">
+  <div class="mb-3">
+    <label class="form-label">Slot Number</label>
+    <input type="text" name="slot_number" class="form-control"
+           value="{{ slot.slot_number if slot else '' }}" placeholder="e.g. A1" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Slot Type</label>
+    <select name="slot_type" class="form-select">
+      {% for t in ["normal", "bike", "handicapped"] %}
+        <option value="{{ t }}" {% if slot and slot.slot_type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Distance from gate (meters)</label>
+    <input type="number" step="0.1" min="0" name="distance" class="form-control"
+           value="{{ slot.distance if slot else '' }}" required>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Save</button>
+  <a href="{{ url_for('slots') }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

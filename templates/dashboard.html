@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h3 class="mb-4">Welcome, {{ current_user.name }}!</h3>
+
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="text-muted">My Vehicles</h6>
+                <h2>{{ vehicle_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="text-muted">Available Slots</h6>
+                <h2>{{ available_slots }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2">
+    <button class="btn btn-primary" disabled>View Parking (coming soon)</button>
+    <a href="{{ url_for('vehicles') }}" class="btn btn-outline-primary">My Vehicles</a>
+</div>
+{% endblock %}
