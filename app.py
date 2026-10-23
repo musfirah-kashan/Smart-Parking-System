@@ -1,4 +1,6 @@
+import math
 import os
+from datetime import datetime
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
@@ -11,7 +13,7 @@ from flask_login import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import db, User, Vehicle, ParkingSlot
+from models import db, User, Vehicle, ParkingSlot, ParkingRecord, Payment
 import models
 
 
@@ -232,6 +234,15 @@ def delete_vehicle(vehicle_id):
     if vehicle is None or vehicle.user_id != current_user.id:
         abort(404)
 
+    # Member 4: parked vehicle delete nahi hoga (record toot jayega)
+    still_parked = ParkingRecord.query.filter(
+        ParkingRecord.vehicle_id == vehicle.id,
+        ParkingRecord.exit_time.is_(None),
+    ).first()
+    if still_parked:
+        flash("This vehicle is currently parked. Exit it first.", "danger")
+        return redirect(url_for("vehicles"))
+
     db.session.delete(vehicle)
     db.session.commit()
 
@@ -368,6 +379,158 @@ def update_slot_status(slot_id):
 
     flash(f"Slot {slot.slot_number} is now {new_status}.", "success")
     return redirect(url_for("slots"))
+
+
+# ---------------- ENTRY / EXIT / FEE (Member 4) ----------------
+
+FIRST_HOUR_FEE = 50       # pehla ghanta
+SECOND_HOUR_FEE = 80      # doosra ghanta
+HOURLY_INCREASE = 0.20    # uske baad har ghante ka rate pichle se 20% zyada
+
+
+def calculate_fee(entry_time, exit_time):
+    """Escalating fee. Partial hour = poora ghanta.
+    Rates: 50, 80, 96, 115.2, 138.24 ... (har ghanta pichle se 20% zyada)."""
+    seconds = (exit_time - entry_time).total_seconds()
+    hours = max(1, math.ceil(seconds / 3600))
+
+    fee = FIRST_HOUR_FEE
+    rate = SECOND_HOUR_FEE
+    for _ in range(1, hours):
+        fee += rate
+        rate *= 1 + HOURLY_INCREASE
+
+    # Rs.10 ke multiple tak upar round (226 -> 230). round(.., 2) float error se bachata hai.
+    fee = math.ceil(round(fee, 2) / 10) * 10
+
+    return hours, fee
+
+
+def active_records_for_current_user():
+    """Jo gaadiyan abhi parked hain (exit_time None). Admin ko sab, user ko sirf apni."""
+    query = ParkingRecord.query.filter(ParkingRecord.exit_time.is_(None))
+    if current_user.role != "admin":
+        query = query.join(
+            Vehicle, ParkingRecord.vehicle_id == Vehicle.id
+        ).filter(Vehicle.user_id == current_user.id)
+    return query.order_by(ParkingRecord.entry_time).all()
+
+
+@app.route("/entry", methods=["GET", "POST"])
+@login_required
+def vehicle_entry():
+    vehicle_query = Vehicle.query
+    if current_user.role != "admin":
+        vehicle_query = vehicle_query.filter_by(user_id=current_user.id)
+
+    parked_ids = {
+        r.vehicle_id
+        for r in ParkingRecord.query.filter(ParkingRecord.exit_time.is_(None)).all()
+    }
+
+    if request.method == "POST":
+        vehicle_id = request.form.get("vehicle_id", type=int)
+        vehicle = vehicle_query.filter_by(id=vehicle_id).first() if vehicle_id else None
+
+        if vehicle is None:
+            flash("Please select a valid vehicle.", "danger")
+            return redirect(url_for("vehicle_entry"))
+
+        if vehicle.id in parked_ids:
+            flash("This vehicle is already parked.", "danger")
+            return redirect(url_for("vehicle_entry"))
+
+        # User khud slot chunta hai. Server pe dobara check: slot abhi bhi available hai?
+        slot_id = request.form.get("slot_id", type=int)
+        slot = db.session.get(ParkingSlot, slot_id) if slot_id else None
+
+        if slot is None:
+            flash("Please select a parking slot.", "danger")
+            return redirect(url_for("vehicle_entry"))
+
+        if slot.status != "available":
+            flash(
+                f"Slot {slot.slot_number} is not available ({slot.status}). Choose another slot.",
+                "danger",
+            )
+            return redirect(url_for("vehicle_entry"))
+
+        record = ParkingRecord(
+            vehicle_id=vehicle.id,
+            slot_id=slot.id,
+            entry_time=datetime.now(),
+        )
+        slot.status = "occupied"
+        db.session.add(record)
+        db.session.commit()
+
+        flash(
+            f"{vehicle.vehicle_number} parked at slot {slot.slot_number}.",
+            "success",
+        )
+        return redirect(url_for("vehicle_exit"))
+
+    free_vehicles = [v for v in vehicle_query.all() if v.id not in parked_ids]
+    all_slots = ParkingSlot.query.order_by(ParkingSlot.slot_number).all()
+    available_count = sum(1 for s in all_slots if s.status == "available")
+    return render_template(
+        "entry.html",
+        vehicles=free_vehicles,
+        slots=all_slots,
+        available_count=available_count,
+    )
+
+
+@app.route("/exit")
+@login_required
+def vehicle_exit():
+    now = datetime.now()
+    rows = []
+    for record in active_records_for_current_user():
+        hours, fee = calculate_fee(record.entry_time, now)
+        rows.append(
+            {
+                "record": record,
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+                "hours": hours,
+                "fee": fee,
+            }
+        )
+    return render_template("exit.html", rows=rows)
+
+
+@app.route("/exit/<int:record_id>/checkout", methods=["POST"])
+@login_required
+def checkout(record_id):
+    record = db.session.get(ParkingRecord, record_id)
+    if record is None or record.exit_time is not None:
+        abort(404)
+
+    vehicle = db.session.get(Vehicle, record.vehicle_id)
+    if vehicle is None or (
+        current_user.role != "admin" and vehicle.user_id != current_user.id
+    ):
+        abort(404)
+
+    now = datetime.now()
+    hours, fee = calculate_fee(record.entry_time, now)
+
+    record.exit_time = now
+    record.fee = fee
+
+    slot = db.session.get(ParkingSlot, record.slot_id)
+    if slot is not None and slot.status == "occupied":
+        slot.status = "available"
+
+    db.session.add(Payment(record_id=record.id, amount=fee, status="paid"))
+    db.session.commit()
+
+    flash(
+        f"{vehicle.vehicle_number} exited. {hours} hour(s), fee: Rs.{fee:.0f}.",
+        "success",
+    )
+    return redirect(url_for("vehicle_exit"))
 
 
 # ---------------- ADMIN ----------------

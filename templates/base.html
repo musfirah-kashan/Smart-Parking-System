@@ -37,6 +37,8 @@
                         <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
                         <a class="nav-link" href="{{ url_for('vehicles') }}">My Vehicles</a>
                         <a class="nav-link" href="{{ url_for('slots') }}">Parking Slots</a>
+                        <a class="nav-link" href="{{ url_for('vehicle_entry') }}">Entry</a>
+                        <a class="nav-link" href="{{ url_for('vehicle_exit') }}">Exit</a>
                         <a class="nav-link" href="{{ url_for('profile') }}">Profile</a>
                         {% if current_user.role == "admin" %}
                             <a class="nav-link" href="{{ url_for('admin_users') }}">Manage Users</a>

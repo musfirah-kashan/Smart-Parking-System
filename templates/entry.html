@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Vehicle Entry{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Vehicle Entry</h2>
+    <a class="btn btn-outline-secondary" href="{{ url_for('vehicle_exit') }}">Go to Exit</a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p class="mb-3">
+            Available slots:
+            <span class="badge bg-success fs-6">{{ available_count }}</span>
+        </p>
+
+        {% if vehicles %}
+        <form method="POST" action="{{ url_for('vehicle_entry') }}">
+            <div class="mb-4">
+                <label for="vehicle_id" class="form-label">Select vehicle</label>
+                <select name="vehicle_id" id="vehicle_id" class="form-select" required>
+                    <option value="">-- choose --</option>
+                    {% for v in vehicles %}
+                    <option value="{{ v.id }}">{{ v.vehicle_number }} ({{ v.vehicle_type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <label class="form-label">Select parking slot</label>
+            {% if slots %}
+            <div class="table-responsive mb-3">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Slot</th>
+                            <th>Type</th>
+                            <th>Distance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in slots %}
+                        <tr class="{{ '' if s.status == 'available' else 'text-muted' }}">
+                            <td>
+                                <input class="form-check-input" type="radio" name="slot_id"
+                                       value="{{ s.id }}" id="slot{{ s.id }}"
+                                       {% if s.status != 'available' %}disabled{% endif %}
+                                       {% if s.status == 'available' %}required{% endif %}>
+                            </td>
+                            <td><label for="slot{{ s.id }}">{{ s.slot_number }}</label></td>
+                            <td>{{ s.slot_type }}</td>
+                            <td>{{ s.distance }}</td>
+                            <td>
+                                {% if s.status == 'available' %}
+                                    <span class="badge bg-success">Available</span>
+                                {% elif s.status == 'occupied' %}
+                                    <span class="badge bg-danger">Occupied</span>
+                                {% elif s.status == 'reserved' %}
+                                    <span class="badge bg-warning text-dark">Reserved</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ s.status|capitalize }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">No slots have been created yet.</div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary" {% if available_count == 0 %}disabled{% endif %}>
+                Park Vehicle
+            </button>
+            {% if available_count == 0 %}
+            <span class="text-danger ms-2">No available slots right now.</span>
+            {% endif %}
+        </form>
+        {% else %}
+        <p class="text-muted">
+            No vehicle available for entry. Either add a vehicle first or all your vehicles are already parked.
+        </p>
+        <a class="btn btn-primary" href="{{ url_for('add_vehicle') }}">Add Vehicle</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
