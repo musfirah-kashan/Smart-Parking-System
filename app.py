@@ -136,12 +136,18 @@ def dashboard():
 def profile():
     if request.method == "POST":
         name = request.form["name"].strip()
-        email = request.form["email"].strip().lower()
+        email = request.form["email"].strip()
         phone = request.form["phone"].strip()
 
         if not name or not email:
             flash("Please fill all fields.", "danger")
             return redirect(url_for("profile"))
+
+        if email != email.lower():
+            flash("Please write your email in lowercase.", "danger")
+            return redirect(url_for("profile"))
+
+        email = email.lower()
 
         existing = User.query.filter_by(email=email).first()
         if existing and existing.id != current_user.id:
@@ -151,6 +157,7 @@ def profile():
         current_user.name = name
         current_user.email = email
         current_user.phone = phone
+
         db.session.commit()
 
         flash("Profile updated successfully!", "success")
