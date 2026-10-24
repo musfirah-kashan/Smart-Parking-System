@@ -1,5 +1,6 @@
 import math
 import os
+import re
 from datetime import datetime
 from functools import wraps
 
@@ -42,6 +43,18 @@ with app.app_context():
     db.create_all()
 
 
+# ---------------- VALIDATION HELPERS ----------------
+
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$")
+PHONE_RE = re.compile(r"^\+?\d{10,13}$")
+MIN_PASSWORD_LENGTH = 6
+
+
+def clean_phone(raw):
+    """Spaces aur dashes hata deta hai: '0300-123 4567' -> '03001234567'."""
+    return re.sub(r"[\s\-]", "", raw or "")
+
+
 def admin_required(f):
     @wraps(f)
     @login_required
@@ -71,6 +84,19 @@ def register():
             flash("Please fill all fields.", "danger")
             return redirect(url_for("register"))
 
+        if not EMAIL_RE.match(email):
+            flash("Please enter a valid email address (like name@example.com).", "danger")
+            return redirect(url_for("register"))
+
+        phone = clean_phone(phone)
+        if not PHONE_RE.match(phone):
+            flash("Phone must contain digits only (10 to 13 digits, optional + at the start).", "danger")
+            return redirect(url_for("register"))
+
+        if len(password) < MIN_PASSWORD_LENGTH:
+            flash(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.", "danger")
+            return redirect(url_for("register"))
+
         if User.query.filter_by(email=email).first():
             flash("This email is already registered.", "danger")
             return redirect(url_for("register"))
@@ -95,6 +121,10 @@ def login():
     if request.method == "POST":
         email = request.form["email"].strip().lower()
         password = request.form["password"]
+
+        if not EMAIL_RE.match(email):
+            flash("Please enter a valid email address.", "danger")
+            return redirect(url_for("login"))
 
         user = User.query.filter_by(email=email).first()
 
@@ -136,18 +166,21 @@ def dashboard():
 def profile():
     if request.method == "POST":
         name = request.form["name"].strip()
-        email = request.form["email"].strip()
+        email = request.form["email"].strip().lower()
         phone = request.form["phone"].strip()
 
         if not name or not email:
             flash("Please fill all fields.", "danger")
             return redirect(url_for("profile"))
 
-        if email != email.lower():
-            flash("Please write your email in lowercase.", "danger")
+        if not EMAIL_RE.match(email):
+            flash("Please enter a valid email address (like name@example.com).", "danger")
             return redirect(url_for("profile"))
 
-        email = email.lower()
+        phone = clean_phone(phone)
+        if phone and not PHONE_RE.match(phone):
+            flash("Phone must contain digits only (10 to 13 digits, optional + at the start).", "danger")
+            return redirect(url_for("profile"))
 
         existing = User.query.filter_by(email=email).first()
         if existing and existing.id != current_user.id:
@@ -157,13 +190,43 @@ def profile():
         current_user.name = name
         current_user.email = email
         current_user.phone = phone
-
         db.session.commit()
 
         flash("Profile updated successfully!", "success")
         return redirect(url_for("profile"))
 
-    return render_template("profile.html")
+    # Payment history: sirf apni gaadiyon ki payments, naye exit pehle
+    history_query = (
+        Payment.query.join(ParkingRecord, Payment.record_id == ParkingRecord.id)
+        .join(Vehicle, ParkingRecord.vehicle_id == Vehicle.id)
+        .filter(Vehicle.user_id == current_user.id)
+        .order_by(ParkingRecord.exit_time.desc())
+    )
+    history = []
+    total_paid = 0
+    total_pending = 0
+    for pay in history_query.all():
+        record = db.session.get(ParkingRecord, pay.record_id)
+        history.append(
+            {
+                "payment": pay,
+                "record": record,
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+                "hours": calculate_fee(record.entry_time, record.exit_time)[0],
+            }
+        )
+        if pay.status == "paid":
+            total_paid += pay.amount
+        else:
+            total_pending += pay.amount
+
+    return render_template(
+        "profile.html",
+        history=history,
+        total_paid=total_paid,
+        total_pending=total_pending,
+    )
 
 
 # ---------------- VEHICLES ----------------
@@ -248,6 +311,17 @@ def delete_vehicle(vehicle_id):
     ).first()
     if still_parked:
         flash("This vehicle is currently parked. Exit it first.", "danger")
+        return redirect(url_for("vehicles"))
+
+    # Payment pending hai to bhi delete nahi hogi (receipt toot jayegi)
+    unpaid = (
+        Payment.query.filter_by(status="pending")
+        .join(ParkingRecord, Payment.record_id == ParkingRecord.id)
+        .filter(ParkingRecord.vehicle_id == vehicle.id)
+        .first()
+    )
+    if unpaid:
+        flash("This vehicle has a pending payment. Pay it first.", "danger")
         return redirect(url_for("vehicles"))
 
     db.session.delete(vehicle)
@@ -504,7 +578,11 @@ def vehicle_exit():
                 "fee": fee,
             }
         )
-    return render_template("exit.html", rows=rows)
+    return render_template(
+        "exit.html",
+        rows=rows,
+        pending=pending_payment_rows(),
+    )
 
 
 @app.route("/exit/<int:record_id>/checkout", methods=["POST"])
@@ -530,14 +608,91 @@ def checkout(record_id):
     if slot is not None and slot.status == "occupied":
         slot.status = "available"
 
-    db.session.add(Payment(record_id=record.id, amount=fee, status="paid"))
+    db.session.add(Payment(record_id=record.id, amount=fee, status="pending"))
     db.session.commit()
 
     flash(
-        f"{vehicle.vehicle_number} exited. {hours} hour(s), fee: Rs.{fee:.0f}.",
+        f"{vehicle.vehicle_number} exited. {hours} hour(s), fee: Rs.{fee:.0f}. Please complete the payment.",
         "success",
     )
-    return redirect(url_for("vehicle_exit"))
+    return redirect(url_for("payment", record_id=record.id))
+
+
+# ---------------- PAYMENT (Member 4, demo page) ----------------
+
+# Sirf dikhane ke liye, database mein save nahi hota.
+PAYMENT_METHODS = ["Cash", "Card", "JazzCash", "Easypaisa"]
+
+
+def pending_payment_rows():
+    """Wo payments jo abhi pending hain. Admin ko sab, user ko sirf apni."""
+    query = (
+        Payment.query.filter_by(status="pending")
+        .join(ParkingRecord, Payment.record_id == ParkingRecord.id)
+        .join(Vehicle, ParkingRecord.vehicle_id == Vehicle.id)
+    )
+    if current_user.role != "admin":
+        query = query.filter(Vehicle.user_id == current_user.id)
+
+    rows = []
+    for pay in query.order_by(Payment.id).all():
+        record = db.session.get(ParkingRecord, pay.record_id)
+        rows.append(
+            {
+                "payment": pay,
+                "record": record,
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+            }
+        )
+    return rows
+
+
+@app.route("/payment/<int:record_id>", methods=["GET", "POST"])
+@login_required
+def payment(record_id):
+    record = db.session.get(ParkingRecord, record_id)
+    if record is None or record.exit_time is None:
+        abort(404)
+
+    vehicle = db.session.get(Vehicle, record.vehicle_id)
+    if vehicle is None or (
+        current_user.role != "admin" and vehicle.user_id != current_user.id
+    ):
+        abort(404)
+
+    pay = Payment.query.filter_by(record_id=record.id).first()
+    if pay is None:
+        abort(404)
+
+    if request.method == "POST":
+        if pay.status == "paid":
+            flash("This payment is already completed.", "info")
+        else:
+            method = request.form.get("method", "")
+            if method not in PAYMENT_METHODS:
+                flash("Please select a payment method.", "danger")
+                return redirect(url_for("payment", record_id=record.id))
+
+            pay.status = "paid"
+            db.session.commit()
+            flash(
+                f"Payment of Rs.{pay.amount:.0f} received via {method} (demo).",
+                "success",
+            )
+        return redirect(url_for("payment", record_id=record.id))
+
+    slot = db.session.get(ParkingSlot, record.slot_id)
+    hours, _ = calculate_fee(record.entry_time, record.exit_time)
+    return render_template(
+        "payment.html",
+        record=record,
+        vehicle=vehicle,
+        slot=slot,
+        payment=pay,
+        hours=hours,
+        methods=PAYMENT_METHODS,
+    )
 
 
 # ---------------- ADMIN ----------------

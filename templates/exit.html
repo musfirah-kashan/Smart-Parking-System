@@ -44,4 +44,36 @@
 {% else %}
 <div class="alert alert-info">No vehicles are currently parked.</div>
 {% endif %}
+
+{% if pending %}
+<h4 class="mt-5 mb-3">Pending Payments</h4>
+<div class="card shadow-sm border-warning">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Vehicle</th>
+                    <th>Slot</th>
+                    <th>Exit Time</th>
+                    <th>Amount</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pending %}
+                <tr>
+                    <td>{{ p.vehicle.vehicle_number if p.vehicle else '-' }}</td>
+                    <td>{{ p.slot.slot_number if p.slot else '-' }}</td>
+                    <td>{{ p.record.exit_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                    <td>Rs.{{ "%.0f"|format(p.payment.amount) }}</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-success" href="{{ url_for('payment', record_id=p.record.id) }}">Pay Now</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

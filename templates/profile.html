@@ -3,25 +3,138 @@
 {% block title %}My Profile{% endblock %}
 
 {% block content %}
-<div class="mx-auto" style="max-width: 450px;">
-    <h3 class="mb-4">My Profile</h3>
+<div class="row g-4 align-items-start">
 
-    <p><strong>Role:</strong> {{ current_user.role }}</p>
+    <!-- LEFT: Profile card -->
+    <div class="col-lg-5">
+        <div class="form-card">
+            <h3 class="mb-4">My Profile</h3>
 
-    <form method="POST">
-        <div class="mb-3">
-            <label class="form-label">Name</label>
-            <input type="text" name="name" class="form-control" value="{{ current_user.name }}" required>
+            <p><strong>Role:</strong> {{ current_user.role }}</p>
+
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <input type="text" name="name" class="form-control" value="{{ current_user.name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control live-check lower-email"
+                           value="{{ current_user.email }}"
+                           pattern="[A-Za-z0-9._+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}"
+                           required>
+                    <div class="invalid-feedback">Enter a valid email like name@example.com.</div>
+                    <div class="form-text">Email will be saved in lowercase.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" name="phone" class="form-control live-check phone-input"
+                           value="{{ current_user.phone or '' }}"
+                           inputmode="numeric" maxlength="20"
+                           pattern="\+?([0-9][ \-]?){9,12}[0-9]"
+                           placeholder="03001234567">
+                    <div class="invalid-feedback">Digits only, 10 to 13 digits (optional + at the start).</div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+            </form>
         </div>
-        <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input type="email" name="email" class="form-control" value="{{ current_user.email }}" required>
+    </div>
+
+    <!-- RIGHT: Payment history -->
+    <div class="col-lg-7">
+        <h4 class="mb-3">Payment History</h4>
+
+        <div class="row g-3 mb-3">
+            <div class="col-6">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted">Total Paid</div>
+                        <div class="fs-4 text-success">Rs.{{ "%.0f"|format(total_paid) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted">Pending</div>
+                        <div class="fs-4 text-warning">Rs.{{ "%.0f"|format(total_pending) }}</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label class="form-label">Phone</label>
-            <input type="text" name="phone" class="form-control" value="{{ current_user.phone or '' }}">
+
+        {% if history %}
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Vehicle</th>
+                            <th>Slot</th>
+                            <th>Hours</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in history %}
+                        <tr>
+                            <td>{{ h.record.exit_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                            <td>{{ h.vehicle.vehicle_number if h.vehicle else '-' }}</td>
+                            <td>{{ h.slot.slot_number if h.slot else '-' }}</td>
+                            <td>{{ h.hours }}</td>
+                            <td>Rs.{{ "%.0f"|format(h.payment.amount) }}</td>
+                            <td>
+                                {% if h.payment.status == 'paid' %}
+                                    <span class="badge bg-success">Paid</span>
+                                {% else %}
+                                    <a class="btn btn-sm btn-warning" href="{{ url_for('payment', record_id=h.record.id) }}">Pay Now</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Save Changes</button>
-    </form>
+        {% else %}
+        <div class="alert alert-info">No payments yet. Payments appear here after you exit a parked vehicle.</div>
+        {% endif %}
+    </div>
+
 </div>
+
+<script>
+document.querySelectorAll(".phone-input").forEach(function (input) {
+    input.addEventListener("input", function () {
+        var v = input.value.replace(/[^0-9+\- ]/g, "");
+        input.value = v.charAt(0) === "+" ? "+" + v.slice(1).replace(/\+/g, "") : v.replace(/\+/g, "");
+    });
+});
+
+document.querySelectorAll(".lower-email").forEach(function (input) {
+    input.addEventListener("blur", function () {
+        input.value = input.value.trim().toLowerCase();
+    });
+});
+
+document.querySelectorAll(".live-check").forEach(function (input) {
+    function check() {
+        if (input.value === "") {
+            input.classList.remove("is-invalid", "is-valid");
+            return;
+        }
+        if (input.checkValidity()) {
+            input.classList.remove("is-invalid");
+            input.classList.add("is-valid");
+        } else {
+            input.classList.add("is-invalid");
+            input.classList.remove("is-valid");
+        }
+    }
+    input.addEventListener("input", check);
+    input.addEventListener("blur", check);
+});
+</script>
 {% endblock %}

@@ -17,29 +17,44 @@
         and help administrators manage parking operations.
     </p>
 
-    <a href="#features" class="btn btn-parking mt-3">
-        Explore Features
-    </a>
+    <div class="d-flex justify-content-center flex-wrap gap-2 mt-4">
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-parking">Go to Dashboard</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="btn btn-parking">Login</a>
+            <a href="{{ url_for('register') }}" class="btn btn-hero-outline">Create Account</a>
+        {% endif %}
+        <a href="#features" class="btn btn-hero-outline">Explore Features</a>
+    </div>
 </section>
 
 <section id="features" class="row g-4 mt-5">
 
     <div class="col-md-4">
-        <div class="feature-card">
+        <div class="feature-card lift">
+            <div class="feature-icon">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
             <h4>Parking Slots</h4>
             <p>View available and occupied parking spaces.</p>
         </div>
     </div>
 
     <div class="col-md-4">
-        <div class="feature-card">
+        <div class="feature-card lift">
+            <div class="feature-icon">
+                <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
             <h4>Smart Allocation</h4>
             <p>Use data structures to help select a suitable slot.</p>
         </div>
     </div>
 
     <div class="col-md-4">
-        <div class="feature-card">
+        <div class="feature-card lift">
+            <div class="feature-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+            </div>
             <h4>Parking History</h4>
             <p>Keep track of parking records and fees.</p>
         </div>

@@ -1,52 +1,528 @@
+/* =========================================================
+   Smart Parking System - UI theme
+   Loaded AFTER Bootstrap 5.3.3, so these rules override it.
+   To change the look, edit the colors in section 1.
+   ========================================================= */
 
+/* ---------- 1. Theme colors ---------- */
+:root {
+    --navy: #163A5F;
+    --navy-dark: #0F2A45;
+    --royal: #2563EB;
+    --royal-dark: #1D4ED8;
+    --page-bg: #F5F7FA;
+    --text: #1F2937;
+    --muted: #6B7280;
+    --border: #E5E7EB;
+
+    --green: #1E8E5A;   --green-soft: #E7F6EE;  --green-ink: #14633F;
+    --orange: #F59E4B;  --orange-soft: #FFF1E3; --orange-ink: #9A4A0B;
+    --red: #D64545;     --red-soft: #FDECEC;    --red-ink: #9B2C2C;
+
+    /* Tell Bootstrap about our colors */
+    --bs-body-bg: var(--page-bg);
+    --bs-body-color: var(--text);
+    --bs-body-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --bs-primary-rgb: 37, 99, 235;
+    --bs-success-rgb: 30, 142, 90;
+    --bs-warning-rgb: 217, 119, 6;
+    --bs-danger-rgb: 214, 69, 69;
+    --bs-link-color-rgb: 37, 99, 235;
+    --bs-link-hover-color-rgb: 29, 78, 216;
+}
+
+/* ---------- 2. Page basics ---------- */
 body {
-    background-color: #f4f7fb;
-    color: #1e293b;
-    font-family: Arial, sans-serif;
+    display: flex;                 /* keeps footer at the bottom on short pages */
+    flex-direction: column;
+    min-height: 100vh;
     margin: 0;
+    line-height: 1.55;
 }
 
+main { flex: 1 0 auto; }
+
+h1, h2, h3, h4, h5 {
+    color: var(--navy);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+a:focus-visible,
+.btn:focus-visible {
+    outline: 2px solid var(--royal);
+    outline-offset: 2px;
+}
+
+/* ---------- 3. Navbar and footer ---------- */
 .parking-navbar {
-    background-color: #123b4a;
+    background-color: var(--navy);
+    padding: 0.6rem 0;
+    box-shadow: 0 2px 8px rgba(15, 42, 69, 0.18);
 }
 
+.parking-navbar .navbar-brand { font-size: 1.2rem; }
+
+.parking-navbar .nav-link {
+    color: rgba(255, 255, 255, 0.78);
+    padding: 0.45rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.93rem;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.parking-navbar .nav-link:hover,
+.parking-navbar .nav-link:focus {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+footer {
+    background-color: #fff;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* ---------- 4. Home page ---------- */
 .hero {
-    background-color: white;
-    padding: 60px 25px;
+    background: linear-gradient(135deg, var(--navy) 0%, #1F4E80 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 72px 25px;
     border-radius: 16px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 16px rgba(15, 42, 69, 0.15);
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .hero h1 {
-    color: #123b4a;
+    color: #fff;
     font-size: 2.5rem;
-    font-weight: bold;
+    font-weight: 700;
 }
 
 .btn-parking {
-    background-color: #087f8c;
-    color: white;
-    padding: 10px 22px;
+    background-color: #fff;
+    color: var(--navy);
+    padding: 10px 24px;
     border-radius: 8px;
+    font-weight: 600;
 }
 
 .btn-parking:hover {
-    background-color: #066570;
-    color: white;
+    background-color: #E8EEF6;
+    color: var(--navy-dark);
 }
 
 .feature-card {
     height: 100%;
     padding: 25px;
-    background-color: white;
+    background-color: #fff;
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--royal);
     border-radius: 12px;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
 }
 
-.feature-card h4 {
-    color: #087f8c;
+.feature-card h4 { color: var(--navy); font-size: 1.15rem; }
+.feature-card p { color: var(--muted); margin-bottom: 0; }
+
+/* ---------- 5. Cards ---------- */
+.card {
+    --bs-card-bg: #fff;
+    --bs-card-border-color: var(--border);
+    --bs-card-cap-bg: #F8FAFC;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+    overflow: hidden;
 }
 
-footer {
-    color: #64748b;
+.card-header { color: var(--navy); border-bottom: 1px solid var(--border); }
+
+/* Dashboard and profile number cards */
+.card-body h2 { color: var(--navy); font-size: 2.2rem; font-weight: 700; margin-bottom: 0; }
+.card-body h6.text-muted { font-weight: 500; }
+
+/* Exit page: pending payments card gets a soft orange outline */
+.card.border-warning { --bs-warning-rgb: 245, 158, 75; }
+
+/* Form wrapper (profile, add/edit vehicle, add/edit slot) */
+.form-card {
+    background-color: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+    padding: 1.75rem;
 }
+
+/* ---------- 6. Buttons ---------- */
+.btn { border-radius: 8px; font-weight: 500; transition: background-color 0.15s, border-color 0.15s, color 0.15s; }
+.btn-sm { border-radius: 6px; }
+
+.btn-primary {
+    --bs-btn-bg: var(--royal);              --bs-btn-border-color: var(--royal);
+    --bs-btn-hover-bg: var(--royal-dark);   --bs-btn-hover-border-color: var(--royal-dark);
+    --bs-btn-active-bg: #1E40AF;            --bs-btn-active-border-color: #1E40AF;
+    --bs-btn-disabled-bg: var(--royal);     --bs-btn-disabled-border-color: var(--royal);
+    --bs-btn-focus-shadow-rgb: 37, 99, 235;
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--royal);           --bs-btn-border-color: var(--royal);
+    --bs-btn-hover-bg: var(--royal);        --bs-btn-hover-border-color: var(--royal);
+    --bs-btn-active-bg: var(--royal-dark);  --bs-btn-active-border-color: var(--royal-dark);
+    --bs-btn-disabled-color: var(--royal);  --bs-btn-disabled-border-color: var(--royal);
+    --bs-btn-focus-shadow-rgb: 37, 99, 235;
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: #4B5563;                --bs-btn-border-color: #CBD5E1;
+    --bs-btn-hover-color: var(--text);      --bs-btn-hover-bg: #E5E7EB;
+    --bs-btn-hover-border-color: #9CA3AF;   --bs-btn-active-color: var(--text);
+    --bs-btn-active-bg: #D1D5DB;            --bs-btn-active-border-color: #9CA3AF;
+}
+
+.btn-secondary {
+    --bs-btn-color: var(--text);            --bs-btn-bg: #E5E7EB;
+    --bs-btn-border-color: #E5E7EB;         --bs-btn-hover-color: var(--text);
+    --bs-btn-hover-bg: #D1D5DB;             --bs-btn-hover-border-color: #D1D5DB;
+    --bs-btn-active-color: var(--text);     --bs-btn-active-bg: #CBD5E1;
+    --bs-btn-active-border-color: #CBD5E1;
+}
+
+.btn-success {
+    --bs-btn-bg: var(--green);              --bs-btn-border-color: var(--green);
+    --bs-btn-hover-bg: #187A4D;             --bs-btn-hover-border-color: #187A4D;
+    --bs-btn-active-bg: #146843;            --bs-btn-active-border-color: #146843;
+    --bs-btn-focus-shadow-rgb: 30, 142, 90;
+}
+
+/* Warning buttons (Edit, Pay Now) use a soft orange */
+.btn-warning {
+    --bs-btn-color: var(--orange-ink);      --bs-btn-bg: var(--orange-soft);
+    --bs-btn-border-color: #F9C99A;         --bs-btn-hover-color: var(--orange-ink);
+    --bs-btn-hover-bg: #FFE3C7;             --bs-btn-hover-border-color: #F5B57A;
+    --bs-btn-active-color: var(--orange-ink); --bs-btn-active-bg: #FFD9B3;
+    --bs-btn-active-border-color: #F5B57A;  --bs-btn-focus-shadow-rgb: 245, 158, 75;
+}
+
+.btn-danger {
+    --bs-btn-bg: var(--red);                --bs-btn-border-color: var(--red);
+    --bs-btn-hover-bg: #B83A3A;             --bs-btn-hover-border-color: #B83A3A;
+    --bs-btn-active-bg: #9B2C2C;            --bs-btn-active-border-color: #9B2C2C;
+    --bs-btn-focus-shadow-rgb: 214, 69, 69;
+}
+
+.btn-outline-danger {
+    --bs-btn-color: var(--red);             --bs-btn-border-color: var(--red);
+    --bs-btn-hover-bg: var(--red);          --bs-btn-hover-border-color: var(--red);
+    --bs-btn-active-bg: #B83A3A;            --bs-btn-active-border-color: #B83A3A;
+    --bs-btn-focus-shadow-rgb: 214, 69, 69;
+}
+
+/* ---------- 7. Forms ---------- */
+.form-label { font-weight: 500; color: var(--text); }
+
+.form-control,
+.form-select {
+    background-color: #fff;
+    border-color: #CBD5E1;
+    border-radius: 8px;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+}
+
+.form-select-sm { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--royal);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.18);
+}
+
+.form-check-input { background-color: #fff; border-color: #94A3B8; }
+
+.form-check-input:checked {
+    background-color: var(--royal);
+    border-color: var(--royal);
+}
+
+.form-check-input:focus {
+    border-color: var(--royal);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.18);
+}
+
+/* ---------- 8. Tables ---------- */
+.table {
+    --bs-table-bg: #fff;                /* Bootstrap 5.3 would otherwise use the gray page color */
+    --bs-table-striped-bg: #F8FAFC;
+    --bs-table-hover-bg: #EFF4FF;
+    --bs-table-border-color: var(--border);
+}
+
+.table > :not(caption) > * > * { padding: 0.8rem 1rem; }
+
+.table thead th {
+    background-color: #F1F5F9;
+    color: #475569;
+    font-size: 0.88rem;
+    font-weight: 600;
+    border-bottom: 1px solid #D9E0E8;
+}
+
+/* Tables placed directly on the page (vehicles, slots, users) look like cards */
+main > .table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+main > .table-bordered > :not(caption) > * > * { border-width: 0 0 1px; }
+main > .table > tbody > tr:last-child > * { border-bottom: 0; }
+
+/* Tables inside a card: the card already has the border and shadow */
+.card .table { margin-bottom: 0; }
+
+/* ---------- 9. Status badges and pills ---------- */
+.badge {
+    border-radius: 999px;
+    font-weight: 600;
+    padding: 0.4em 0.8em;
+}
+
+/* Solid dark badges with white text (Available / Occupied / Reserved / Paid / Pending) */
+.badge.bg-success   { --bs-success-rgb: 22, 128, 80;   --bs-badge-color: #fff; }
+.badge.bg-danger    { --bs-danger-rgb: 197, 48, 48;    --bs-badge-color: #fff; }
+.badge.bg-warning   { --bs-warning-rgb: 194, 87, 12;   --bs-dark-rgb: 255, 255, 255; }
+.badge.bg-secondary { --bs-secondary-rgb: 75, 85, 99;  --bs-badge-color: #fff; }
+
+/* Slot status on the Parking Slots page (non-admin view) */
+.status-pill {
+    display: inline-block;
+    padding: 0.25em 0.8em;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    background-color: #4B5563;          /* maintenance / anything else = dark gray */
+    color: #fff;
+}
+
+.status-available { background-color: #168050; }   /* dark green  */
+.status-occupied  { background-color: #C53030; }   /* dark red    */
+.status-reserved  { background-color: #C2570C; }   /* dark orange */
+
+/* ---------- 10. Alerts (flash messages) ---------- */
+.alert { border-radius: 10px; }
+
+.alert-success { --bs-alert-color: #065F46; --bs-alert-bg: #ECFDF5; --bs-alert-border-color: #A7F3D0; }
+.alert-danger  { --bs-alert-color: #991B1B; --bs-alert-bg: #FEF2F2; --bs-alert-border-color: #FECACA; }
+.alert-warning { --bs-alert-color: #9A3412; --bs-alert-bg: #FFF7ED; --bs-alert-border-color: #FED7AA; }
+.alert-info    { --bs-alert-color: #1E40AF; --bs-alert-bg: #EFF6FF; --bs-alert-border-color: #BFDBFE; }
+
+/* ---------- 11. Login and Register pages ---------- */
+.auth-page { --bs-light-rgb: 245, 247, 250; }
+
+.auth-page .container {
+    background-color: #fff;
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--royal);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(16, 24, 40, 0.08);
+    padding: 2rem 2rem 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.auth-page h3 { font-weight: 700; }
+
+/* ---------- 12. Small screens ---------- */
+@media (max-width: 767.98px) {
+    .hero { padding: 40px 18px; }
+    .hero h1 { font-size: 1.9rem; }
+
+    /* Wide tables scroll sideways instead of breaking the page */
+    main > .table { display: block; overflow-x: auto; white-space: nowrap; }
+
+    .form-card, .auth-page .container { padding: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+}
+
+/* =========================================================
+   Part 2: interactivity and page-specific styles
+   ========================================================= */
+
+/* ---------- 13. Shared bits ---------- */
+.icon {
+    width: 1.4em; height: 1.4em;
+    fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* One gentle fade-in when a page loads */
+main { animation: page-in 0.25s ease-out; }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Cards that lift a little on hover (add class "lift" to any card) */
+.lift { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.lift:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(16, 24, 40, 0.10); }
+
+/* Buttons move up 1px on hover, press down on click */
+.btn:not(:disabled):hover { transform: translateY(-1px); }
+.btn:not(:disabled):active { transform: translateY(0); }
+
+/* Loading spinner on submit buttons (added by a small script in base.html) */
+.btn.is-loading::after {
+    content: "";
+    display: inline-block;
+    width: 0.9em; height: 0.9em;
+    margin-left: 0.5rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    vertical-align: -0.12em;
+    animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Tooltips use the navy color */
+.tooltip { --bs-tooltip-bg: var(--navy); --bs-tooltip-border-radius: 6px; }
+
+/* Flash messages: colored left edge so they are easy to notice */
+.alert { border-left-width: 4px; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05); }
+.alert-success { border-left-color: var(--green); }
+.alert-danger  { border-left-color: var(--red); }
+.alert-warning { border-left-color: var(--orange); }
+.alert-info    { border-left-color: var(--royal); }
+
+/* Validation messages under inputs */
+.invalid-feedback { font-size: 0.85rem; }
+
+/* ---------- 14. Navbar: logo and active page ---------- */
+.parking-navbar { top: 0; z-index: 1030; }
+
+.brand-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 30px; height: 30px;
+    margin-right: 0.55rem;
+    border-radius: 8px;
+    background-color: var(--royal);
+    color: #fff;
+    font-weight: 700;
+    line-height: 1;
+}
+.brand-mark-lg { width: 52px; height: 52px; border-radius: 14px; font-size: 1.5rem; }
+
+.parking-navbar .nav-link.active {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.85);
+}
+
+@media (max-width: 991.98px) {
+    .parking-navbar .navbar-nav { padding-top: 0.6rem; gap: 0.2rem; }
+}
+
+/* ---------- 15. Home page ---------- */
+.hero::after {                       /* soft decorative circle */
+    content: "";
+    position: absolute;
+    right: -70px; top: -70px;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+}
+
+.btn-hero-outline {
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 8px;
+}
+.btn-hero-outline:hover { background-color: rgba(255, 255, 255, 0.14); color: #fff; }
+
+.feature-icon {
+    display: grid; place-items: center;
+    width: 46px; height: 46px;
+    margin-bottom: 1rem;
+    border-radius: 12px;
+    background-color: #E8EFFD;
+    color: var(--royal);
+}
+
+/* ---------- 16. Dashboard ---------- */
+.stat-card .card-body { display: flex; align-items: center; gap: 1rem; padding: 1.25rem; }
+
+.stat-icon {
+    display: inline-grid; place-items: center;
+    flex: none;
+    width: 52px; height: 52px;
+    border-radius: 12px;
+}
+.stat-icon .icon { width: 26px; height: 26px; }
+.stat-icon-blue   { background-color: #E8EFFD;           color: var(--royal); }
+.stat-icon-green  { background-color: var(--green-soft); color: var(--green); }
+.stat-icon-orange { background-color: var(--orange-soft); color: var(--orange-ink); }
+
+.action-card {
+    display: flex; align-items: center; gap: 1rem;
+    height: 100%;
+    padding: 1rem 1.25rem;
+    background-color: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+    color: var(--text);
+    text-decoration: none;
+}
+.action-card:hover { border-color: var(--royal); color: var(--text); }
+.action-card strong { display: block; color: var(--navy); }
+.action-card small { color: var(--muted); }
+
+/* ---------- 17. Parking Slots page ---------- */
+.slot-card {
+    height: 100%;
+    padding: 1rem 1.1rem;
+    background-color: #fff;
+    border: 1px solid var(--border);
+    border-left: 5px solid #4B5563;      /* dark gray = maintenance / unknown */
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+.slot-available { border-left-color: #168050; }
+.slot-occupied  { border-left-color: #C53030; }
+.slot-reserved  { border-left-color: #C2570C; }
+
+.slot-number { font-size: 1.7rem; font-weight: 700; line-height: 1; color: var(--navy); }
+
+.slot-meta { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+
+.slot-actions { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+
+.empty-state {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--muted);
+    background-color: #fff;
+    border: 1px dashed #CBD5E1;
+    border-radius: 12px;
+}
+
+/* ---------- 18. Vehicle Entry page ---------- */
+/* highlight the row whose slot radio button is selected */
+.table tbody tr:has(input[type="radio"]:checked) { --bs-table-bg: #EAF1FF; }
+.table td label { display: block; cursor: pointer; font-weight: 500; }
+.table .form-check-input { cursor: pointer; }
+
+/* ---------- 19. Payment page ---------- */
+.table-borderless th { color: var(--muted); font-weight: 500; }
+
+/* ---------- 20. Login and Register pages ---------- */
+body.auth-page { justify-content: center; }
