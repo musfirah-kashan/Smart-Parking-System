@@ -43,11 +43,21 @@
                         <a class="nav-link {{ 'active' if ep == 'dashboard' }}" href="{{ url_for('dashboard') }}">Dashboard</a>
                         <a class="nav-link {{ 'active' if ep in ['vehicles', 'add_vehicle', 'edit_vehicle'] }}" href="{{ url_for('vehicles') }}">My Vehicles</a>
                         <a class="nav-link {{ 'active' if ep in ['slots', 'add_slot', 'edit_slot'] }}" href="{{ url_for('slots') }}">Parking Slots</a>
-                        <a class="nav-link {{ 'active' if ep == 'vehicle_entry' }}" href="{{ url_for('vehicle_entry') }}">Entry</a>
+                        <a class="nav-link {{ 'active' if ep in ['vehicle_entry'] }}" href="{{ url_for('vehicle_entry') }}">Entry</a>
+                        <a class="nav-link {{ 'active' if ep in ['waiting'] }}" href="{{ url_for('waiting') }}">Waiting</a>
                         <a class="nav-link {{ 'active' if ep in ['vehicle_exit', 'payment'] }}" href="{{ url_for('vehicle_exit') }}">Exit</a>
+                        <a class="nav-link {{ 'active' if ep == 'search' }}" href="{{ url_for('search') }}">Search</a>
                         <a class="nav-link {{ 'active' if ep == 'profile' }}" href="{{ url_for('profile') }}">Profile</a>
                         {% if current_user.role == "admin" %}
-                            <a class="nav-link {{ 'active' if ep == 'admin_users' }}" href="{{ url_for('admin_users') }}">Manage Users</a>
+                            <div class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle {{ 'active' if ep in ['admin_users', 'admin_vehicles', 'dsa_lab'] }}"
+                                   href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin</a>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">Manage Users</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('admin_vehicles') }}">All Vehicles</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('dsa_lab') }}">DSA Lab</a></li>
+                                </ul>
+                            </div>
                         {% endif %}
                         <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
                     {% else %}

@@ -12,10 +12,26 @@ from flask_login import (
     login_required,
     current_user,
 )
+from sqlalchemy import inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import db, User, Vehicle, ParkingSlot, ParkingRecord, Payment
+from models import db, User, Vehicle, ParkingSlot, ParkingRecord, Payment, WaitingEntry
 import models
+from dsa.parking_engine import (
+    ADMIN_ONLY_PRIORITIES,
+    PRIORITY_LEVELS,
+    SLOT_PREFERENCE,
+    SLOT_TYPES,
+    assign_waiting_vehicles,
+    build_slot_heaps,
+    build_waiting_fifo,
+    build_waiting_pq,
+    cancel_waiting,
+    queue_position,
+    search_index,
+    smart_park,
+    waiting_vehicle_ids,
+)
 
 
 app = Flask(__name__)
@@ -39,8 +55,42 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
+def ensure_schema():
+    """Old parking.db files do not have the new Vehicle.priority column yet.
+    Add it automatically so nobody has to delete their database."""
+    columns = [c["name"] for c in inspect(db.engine).get_columns("vehicle")]
+    if "priority" not in columns:
+        with db.engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE vehicle ADD COLUMN priority VARCHAR(20) DEFAULT 'Normal'"
+            ))
+
+
+# ---------------- DEFAULT ADMIN (fixed login) ----------------
+DEFAULT_ADMIN_NAME = "Admin"
+DEFAULT_ADMIN_EMAIL = "admin@gmail.com"
+DEFAULT_ADMIN_PASSWORD = "admin123"
+
+
+def ensure_default_admin():
+    """Make sure admin@gmail.com / admin123 always exists and is an admin."""
+    admin = User.query.filter_by(email=DEFAULT_ADMIN_EMAIL).first()
+    if admin is None:
+        admin = User(
+            name=DEFAULT_ADMIN_NAME,
+            email=DEFAULT_ADMIN_EMAIL,
+            phone="03000000000",
+        )
+        db.session.add(admin)
+    admin.role = "admin"
+    admin.password_hash = generate_password_hash(DEFAULT_ADMIN_PASSWORD)
+    db.session.commit()
+
+
 with app.app_context():
-    db.create_all()
+    db.create_all()      # also creates the new waiting_entry table
+    ensure_schema()
+    ensure_default_admin()
 
 
 # ---------------- VALIDATION HELPERS ----------------
@@ -63,6 +113,30 @@ def admin_required(f):
             abort(403)
         return f(*args, **kwargs)
     return wrapper
+
+
+def check_priority(new_priority, current=None):
+    """Returns (priority, error). Emergency and VIP can only be given by an admin."""
+    new_priority = (new_priority or "Normal").strip()
+    if new_priority not in PRIORITY_LEVELS:
+        return None, "Invalid priority."
+    if (
+        new_priority != current
+        and new_priority in ADMIN_ONLY_PRIORITIES
+        and current_user.role != "admin"
+    ):
+        return None, f"Only an admin can set the {new_priority} priority."
+    return new_priority, None
+
+
+def run_waiting_assignment():
+    """A slot just became free: serve the waiting list (priority order)."""
+    for vehicle, slot in assign_waiting_vehicles():
+        flash(
+            f"Waiting list: {vehicle.vehicle_number} ({vehicle.priority}) "
+            f"was parked at slot {slot.slot_number}.",
+            "info",
+        )
 
 
 @app.route("/")
@@ -152,10 +226,12 @@ def logout():
 def dashboard():
     vehicle_count = Vehicle.query.filter_by(user_id=current_user.id).count()
     available_slots = ParkingSlot.query.filter_by(status="available").count()
+    waiting_count = WaitingEntry.query.filter_by(status="waiting").count()
     return render_template(
         "dashboard.html",
         vehicle_count=vehicle_count,
         available_slots=available_slots,
+        waiting_count=waiting_count,
     )
 
 
@@ -244,9 +320,14 @@ def add_vehicle():
     if request.method == "POST":
         number = request.form["vehicle_number"].strip().upper()
         vtype = request.form["vehicle_type"].strip()
+        priority, error = check_priority(request.form.get("priority"))
 
         if not number or not vtype:
             flash("Please fill all fields.", "danger")
+            return redirect(url_for("add_vehicle"))
+
+        if error:
+            flash(error, "danger")
             return redirect(url_for("add_vehicle"))
 
         if Vehicle.query.filter_by(vehicle_number=number).first():
@@ -256,6 +337,7 @@ def add_vehicle():
         vehicle = Vehicle(
             vehicle_number=number,
             vehicle_type=vtype,
+            priority=priority,
             user_id=current_user.id,
         )
         db.session.add(vehicle)
@@ -264,7 +346,9 @@ def add_vehicle():
         flash("Vehicle added successfully!", "success")
         return redirect(url_for("vehicles"))
 
-    return render_template("vehicle_form.html", vehicle=None)
+    return render_template(
+        "vehicle_form.html", vehicle=None, priorities=PRIORITY_LEVELS
+    )
 
 
 @app.route("/vehicles/<int:vehicle_id>/edit", methods=["GET", "POST"])
@@ -277,9 +361,16 @@ def edit_vehicle(vehicle_id):
     if request.method == "POST":
         number = request.form["vehicle_number"].strip().upper()
         vtype = request.form["vehicle_type"].strip()
+        priority, error = check_priority(
+            request.form.get("priority"), current=vehicle.priority
+        )
 
         if not number or not vtype:
             flash("Please fill all fields.", "danger")
+            return redirect(url_for("edit_vehicle", vehicle_id=vehicle_id))
+
+        if error:
+            flash(error, "danger")
             return redirect(url_for("edit_vehicle", vehicle_id=vehicle_id))
 
         existing = Vehicle.query.filter_by(vehicle_number=number).first()
@@ -289,12 +380,15 @@ def edit_vehicle(vehicle_id):
 
         vehicle.vehicle_number = number
         vehicle.vehicle_type = vtype
+        vehicle.priority = priority
         db.session.commit()
 
         flash("Vehicle updated successfully!", "success")
         return redirect(url_for("vehicles"))
 
-    return render_template("vehicle_form.html", vehicle=vehicle)
+    return render_template(
+        "vehicle_form.html", vehicle=vehicle, priorities=PRIORITY_LEVELS
+    )
 
 
 @app.route("/vehicles/<int:vehicle_id>/delete", methods=["POST"])
@@ -314,6 +408,10 @@ def delete_vehicle(vehicle_id):
         return redirect(url_for("vehicles"))
 
     # Payment pending hai to bhi delete nahi hogi (receipt toot jayegi)
+    if vehicle.id in waiting_vehicle_ids():
+        flash("This vehicle is in the waiting list. Leave the queue first.", "danger")
+        return redirect(url_for("vehicles"))
+
     unpaid = (
         Payment.query.filter_by(status="pending")
         .join(ParkingRecord, Payment.record_id == ParkingRecord.id)
@@ -375,9 +473,10 @@ def add_slot():
         db.session.commit()
 
         flash("Slot added successfully!", "success")
+        run_waiting_assignment()
         return redirect(url_for("slots"))
 
-    return render_template("slot_form.html", slot=None)
+    return render_template("slot_form.html", slot=None, slot_types=SLOT_TYPES)
 
 @app.route("/slots/<int:slot_id>/edit", methods=["GET", "POST"])
 @admin_required
@@ -416,9 +515,10 @@ def edit_slot(slot_id):
         db.session.commit()
 
         flash("Slot updated successfully!", "success")
+        run_waiting_assignment()
         return redirect(url_for("slots"))
 
-    return render_template("slot_form.html", slot=slot)
+    return render_template("slot_form.html", slot=slot, slot_types=SLOT_TYPES)
 
 
 @app.route("/slots/<int:slot_id>/delete", methods=["POST"])
@@ -459,6 +559,8 @@ def update_slot_status(slot_id):
     db.session.commit()
 
     flash(f"Slot {slot.slot_number} is now {new_status}.", "success")
+    if new_status == "available":
+        run_waiting_assignment()
     return redirect(url_for("slots"))
 
 
@@ -508,6 +610,7 @@ def vehicle_entry():
         r.vehicle_id
         for r in ParkingRecord.query.filter(ParkingRecord.exit_time.is_(None)).all()
     }
+    waiting_ids = waiting_vehicle_ids()
 
     if request.method == "POST":
         vehicle_id = request.form.get("vehicle_id", type=int)
@@ -519,6 +622,10 @@ def vehicle_entry():
 
         if vehicle.id in parked_ids:
             flash("This vehicle is already parked.", "danger")
+            return redirect(url_for("vehicle_entry"))
+
+        if vehicle.id in waiting_ids:
+            flash("This vehicle is already in the waiting list.", "danger")
             return redirect(url_for("vehicle_entry"))
 
         # User khud slot chunta hai. Server pe dobara check: slot abhi bhi available hai?
@@ -551,7 +658,10 @@ def vehicle_entry():
         )
         return redirect(url_for("vehicle_exit"))
 
-    free_vehicles = [v for v in vehicle_query.all() if v.id not in parked_ids]
+    free_vehicles = [
+        v for v in vehicle_query.all()
+        if v.id not in parked_ids and v.id not in waiting_ids
+    ]
     all_slots = ParkingSlot.query.order_by(ParkingSlot.slot_number).all()
     available_count = sum(1 for s in all_slots if s.status == "available")
     return render_template(
@@ -560,6 +670,53 @@ def vehicle_entry():
         slots=all_slots,
         available_count=available_count,
     )
+
+
+@app.route("/entry/smart", methods=["POST"])
+@login_required
+def smart_entry():
+    """Phase 6: the system picks the slot (type -> priority -> min heap)."""
+    vehicle_query = Vehicle.query
+    if current_user.role != "admin":
+        vehicle_query = vehicle_query.filter_by(user_id=current_user.id)
+
+    vehicle_id = request.form.get("vehicle_id", type=int)
+    vehicle = vehicle_query.filter_by(id=vehicle_id).first() if vehicle_id else None
+    if vehicle is None:
+        flash("Please select a valid vehicle.", "danger")
+        return redirect(url_for("vehicle_entry"))
+
+    already_parked = ParkingRecord.query.filter(
+        ParkingRecord.vehicle_id == vehicle.id,
+        ParkingRecord.exit_time.is_(None),
+    ).first()
+    if already_parked:
+        flash("This vehicle is already parked.", "danger")
+        return redirect(url_for("vehicle_entry"))
+
+    if vehicle.id in waiting_vehicle_ids():
+        flash("This vehicle is already in the waiting list.", "danger")
+        return redirect(url_for("waiting"))
+
+    result = smart_park(vehicle)
+    steps = " > ".join(result["trace"][1:])
+
+    if result["status"] == "parked":
+        slot = result["slot"]
+        flash(
+            f"{vehicle.vehicle_number} parked at slot {slot.slot_number} "
+            f"({slot.distance:g} m from the gate).",
+            "success",
+        )
+        flash(f"Smart allocation: {steps}", "info")
+        return redirect(url_for("vehicle_exit"))
+
+    flash(
+        f"Parking is full for {vehicle.vehicle_number}. "
+        f"Added to the waiting list at position {result['position']}.",
+        "warning",
+    )
+    return redirect(url_for("waiting"))
 
 
 @app.route("/exit")
@@ -615,6 +772,7 @@ def checkout(record_id):
         f"{vehicle.vehicle_number} exited. {hours} hour(s), fee: Rs.{fee:.0f}. Please complete the payment.",
         "success",
     )
+    run_waiting_assignment()       # the freed slot goes to the next waiting vehicle
     return redirect(url_for("payment", record_id=record.id))
 
 
@@ -695,6 +853,165 @@ def payment(record_id):
     )
 
 
+# ---------------- WAITING LIST (Phase 6: Queue + Priority Queue) ----------------
+
+@app.route("/waiting")
+@login_required
+def waiting():
+    rows = []
+    total = 0
+    for position, (rank, entry) in enumerate(build_waiting_pq().ordered(), start=1):
+        total += 1
+        vehicle = db.session.get(Vehicle, entry.vehicle_id)
+        if current_user.role != "admin" and vehicle.user_id != current_user.id:
+            continue                      # users only see their own rows
+        rows.append({"position": position, "entry": entry, "vehicle": vehicle})
+    return render_template("waiting.html", rows=rows, total=total)
+
+
+@app.route("/waiting/<int:entry_id>/cancel", methods=["POST"])
+@login_required
+def cancel_waiting_entry(entry_id):
+    entry = db.session.get(WaitingEntry, entry_id)
+    if entry is None or entry.status != "waiting":
+        abort(404)
+    vehicle = db.session.get(Vehicle, entry.vehicle_id)
+    if current_user.role != "admin" and vehicle.user_id != current_user.id:
+        abort(404)
+    cancel_waiting(entry)
+    flash(f"{vehicle.vehicle_number} left the waiting list.", "success")
+    return redirect(url_for("waiting"))
+
+
+@app.route("/waiting/process", methods=["POST"])
+@admin_required
+def process_waiting():
+    before = WaitingEntry.query.filter_by(status="waiting").count()
+    run_waiting_assignment()
+    after = WaitingEntry.query.filter_by(status="waiting").count()
+    if before == after:
+        flash("No waiting vehicle could be served right now.", "warning")
+    return redirect(url_for("waiting"))
+
+
+# ---------------- SEARCH (Phase 5: Hash Table) ----------------
+
+@app.route("/search")
+@login_required
+def search():
+    q = request.args.get("q", "").strip()
+    kind = request.args.get("type", "vehicle")
+    is_admin = current_user.role == "admin"
+
+    if kind not in ("vehicle", "slot", "user"):
+        kind = "vehicle"
+    if kind == "user" and not is_admin:
+        abort(403)
+
+    results, info = [], None
+
+    if q and kind == "vehicle":
+        hits, info = search_index.search_vehicle(q)
+        for hit in hits:
+            vehicle = db.session.get(Vehicle, hit["vehicle_id"])
+            if vehicle is None:
+                continue
+            if not is_admin and vehicle.user_id != current_user.id:
+                continue                  # do not reveal other people's vehicles
+            record = db.session.get(ParkingRecord, hit["record_id"]) if hit["record_id"] else None
+            results.append({
+                "vehicle": vehicle,
+                "owner": db.session.get(User, vehicle.user_id),
+                "slot": db.session.get(ParkingSlot, hit["slot_id"]) if hit["slot_id"] else None,
+                "record": record,
+                "waiting": vehicle.id in waiting_vehicle_ids(),
+            })
+
+    elif q and kind == "slot":
+        slot_ids, info = search_index.search_slot(q)
+        for slot_id in slot_ids:
+            slot = db.session.get(ParkingSlot, slot_id)
+            if slot is None:
+                continue
+            record = ParkingRecord.query.filter(
+                ParkingRecord.slot_id == slot.id,
+                ParkingRecord.exit_time.is_(None),
+            ).first()
+            vehicle = db.session.get(Vehicle, record.vehicle_id) if record else None
+            can_see = vehicle is not None and (is_admin or vehicle.user_id == current_user.id)
+            results.append({
+                "slot": slot,
+                "record": record,
+                "vehicle": vehicle if can_see else None,
+            })
+
+    elif q and kind == "user":
+        user_ids, info = search_index.search_user(q)
+        for user_id in user_ids:
+            user = db.session.get(User, user_id)
+            if user is None:
+                continue
+            cars = []
+            for v in Vehicle.query.filter_by(user_id=user.id).all():
+                rec = ParkingRecord.query.filter(
+                    ParkingRecord.vehicle_id == v.id,
+                    ParkingRecord.exit_time.is_(None),
+                ).first()
+                cars.append({
+                    "vehicle": v,
+                    "slot": db.session.get(ParkingSlot, rec.slot_id) if rec else None,
+                })
+            results.append({"user": user, "vehicles": cars})
+
+    return render_template("search.html", q=q, kind=kind, results=results, info=info)
+
+
+# ---------------- DSA LAB (Phase 5 + 6 visualiser, admin) ----------------
+
+@app.route("/dsa-lab")
+@admin_required
+def dsa_lab():
+    search_index.ensure_fresh()
+    hash_stats = [
+        ("Vehicles (plate -> parking info)", search_index.vehicles.stats()),
+        ("Slots (slot number -> slot)", search_index.slots.stats()),
+        ("Users (email -> user)", search_index.emails.stats()),
+    ]
+    buckets = search_index.vehicles.bucket_view(10)
+
+    heap_views = []
+    for slot_type, heap in sorted(build_slot_heaps().items()):
+        levels = [
+            [f"{key[1]} ({key[0]:g} m)" for key, _ in level]
+            for level in heap.levels()
+        ]
+        top_key, _ = heap.peek()
+        heap_views.append({
+            "type": slot_type,
+            "size": len(heap),
+            "next": f"{top_key[1]} ({top_key[0]:g} m)",
+            "levels": levels,
+        })
+
+    def describe(entry):
+        vehicle = db.session.get(Vehicle, entry.vehicle_id)
+        return {"number": vehicle.vehicle_number, "priority": vehicle.priority or "Normal"}
+
+    fifo = [describe(e) for e in build_waiting_fifo()]
+    priority_order = [describe(e) for _, e in build_waiting_pq().ordered()]
+
+    return render_template(
+        "dsa_lab.html",
+        hash_stats=hash_stats,
+        buckets=buckets,
+        rebuilds=search_index.rebuilds,
+        heap_views=heap_views,
+        fifo=fifo,
+        priority_order=priority_order,
+        preference=SLOT_PREFERENCE,
+    )
+
+
 # ---------------- ADMIN ----------------
 
 @app.route("/admin/users")
@@ -702,6 +1019,31 @@ def payment(record_id):
 def admin_users():
     users = User.query.order_by(User.id).all()
     return render_template("admin_users.html", users=users)
+
+
+@app.route("/admin/vehicles")
+@admin_required
+def admin_vehicles():
+    rows = []
+    for v in Vehicle.query.order_by(Vehicle.id).all():
+        rows.append({"vehicle": v, "owner": db.session.get(User, v.user_id)})
+    return render_template("admin_vehicles.html", rows=rows, priorities=PRIORITY_LEVELS)
+
+
+@app.route("/admin/vehicles/<int:vehicle_id>/priority", methods=["POST"])
+@admin_required
+def set_vehicle_priority(vehicle_id):
+    vehicle = db.session.get(Vehicle, vehicle_id)
+    if vehicle is None:
+        abort(404)
+    priority = request.form.get("priority", "")
+    if priority not in PRIORITY_LEVELS:
+        flash("Invalid priority.", "danger")
+        return redirect(url_for("admin_vehicles"))
+    vehicle.priority = priority
+    db.session.commit()
+    flash(f"{vehicle.vehicle_number} is now {priority}.", "success")
+    return redirect(url_for("admin_vehicles"))
 
 
 if __name__ == "__main__":

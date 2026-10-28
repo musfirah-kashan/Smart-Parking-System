@@ -7,7 +7,7 @@
 <p class="text-muted mb-4">Here is a quick look at your parking.</p>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card stat-card lift">
             <div class="card-body">
                 <div class="stat-icon stat-icon-blue">
@@ -20,7 +20,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card stat-card lift">
             <div class="card-body">
                 <div class="stat-icon stat-icon-green">
@@ -32,6 +32,21 @@
                 </div>
             </div>
         </div>
+    </div>
+    <div class="col-md-4">
+        <a href="{{ url_for('waiting') }}" class="text-decoration-none">
+            <div class="card stat-card lift">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-orange">
+                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1">Waiting List</h6>
+                        <h2>{{ waiting_count }}</h2>
+                    </div>
+                </div>
+            </div>
+        </a>
     </div>
 </div>
 
@@ -58,7 +73,7 @@
 </div>
 
 <div class="d-flex gap-2">
-    <button class="btn btn-primary" disabled>View Parking (coming soon)</button>
+    <a href="{{ url_for('search') }}" class="btn btn-primary">Search</a>
     <a href="{{ url_for('vehicles') }}" class="btn btn-outline-primary">My Vehicles</a>
 </div>
 {% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}All Vehicles{% endblock %}
+
+{% block content %}
+<h3 class="mb-1">All Vehicles (Admin)</h3>
+<p class="text-muted mb-4">Set the priority class: it decides who is served first when parking is full.</p>
+
+<table class="table table-bordered bg-white align-middle">
+    <thead>
+        <tr>
+            <th>Vehicle</th>
+            <th>Type</th>
+            <th>Owner</th>
+            <th style="width: 260px;">Priority</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.vehicle.vehicle_number }}</td>
+            <td>{{ r.vehicle.vehicle_type }}</td>
+            <td>{{ r.owner.name if r.owner else '-' }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('set_vehicle_priority', vehicle_id=r.vehicle.id) }}" class="d-flex gap-2">
+                    <select name="priority" class="form-select form-select-sm">
+                        {% for p in priorities %}
+                        <option value="{{ p }}" {% if (r.vehicle.priority or 'Normal') == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted">No vehicles yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}DSA Lab{% endblock %}
+
+{% block content %}
+<h2 class="mb-1">DSA Lab</h2>
+<p class="text-muted mb-4">Live view of the data structures behind Search, Slot Allocation and the Waiting List.</p>
+
+{# ---------------- Hash table ---------------- #}
+<h4 class="mb-3">1. Hash Table <small class="text-muted fs-6">(Phase 5, average lookup O(1))</small></h4>
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr><th>Table</th><th>Items</th><th>Buckets</th><th>Load factor</th><th>Used buckets</th><th>Longest chain</th><th>Resizes</th></tr>
+            </thead>
+            <tbody>
+                {% for name, st in hash_stats %}
+                <tr>
+                    <td>{{ name }}</td><td>{{ st.size }}</td><td>{{ st.capacity }}</td>
+                    <td>{{ st.load_factor }}</td><td>{{ st.used_buckets }}</td>
+                    <td>{{ st.longest_chain }}</td><td>{{ st.resizes }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small">Index rebuilt {{ rebuilds }} time(s) since the server started (only after the database changes).</p>
+
+{% if buckets %}
+<div class="card shadow-sm mb-5">
+    <div class="card-body">
+        <h6 class="mb-3">Vehicle table: first buckets</h6>
+        {% for idx, chain in buckets %}
+        <div class="font-monospace small mb-1">bucket {{ "%2d"|format(idx) }} &rarr; {{ chain|join(' &rarr; ')|safe }}</div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="empty-state mb-5">No vehicles in the hash table yet.</div>
+{% endif %}
+
+{# ---------------- Min heaps ---------------- #}
+<h4 class="mb-3">2. Min Heap of free slots <small class="text-muted fs-6">(Phase 6, extractMin O(log n))</small></h4>
+{% if heap_views %}
+<div class="row g-3 mb-5">
+    {% for h in heap_views %}
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="text-capitalize mb-1">{{ h.type }} slots <span class="badge bg-secondary">{{ h.size }} free</span></h6>
+                <p class="mb-2">Next slot (root): <strong>{{ h.next }}</strong></p>
+                <div class="font-monospace small">
+                    {% for level in h.levels %}
+                    <div class="mb-1">level {{ loop.index0 }}: {{ level|join('   |   ') }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state mb-5">No free slots, so every heap is empty.</div>
+{% endif %}
+
+{# ---------------- Queues ---------------- #}
+<h4 class="mb-3">3. Queue vs Priority Queue <small class="text-muted fs-6">(Phase 6)</small></h4>
+<div class="row g-3 mb-5">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h6>FIFO Queue: who arrived first</h6>
+                {% if fifo %}
+                <ol class="mb-0">
+                    {% for e in fifo %}<li>{{ e.number }} <span class="text-muted">({{ e.priority }})</span></li>{% endfor %}
+                </ol>
+                {% else %}<p class="text-muted mb-0">Empty.</p>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100 border-primary">
+            <div class="card-body">
+                <h6>Priority Queue: who is served first</h6>
+                {% if priority_order %}
+                <ol class="mb-0">
+                    {% for e in priority_order %}<li>{{ e.number }} <span class="text-muted">({{ e.priority }})</span></li>{% endfor %}
+                </ol>
+                {% else %}<p class="text-muted mb-0">Empty.</p>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ---------------- Rules ---------------- #}
+<h4 class="mb-3">4. Slot types each priority may use (best first)</h4>
+<div class="card shadow-sm">
+    <table class="table mb-0">
+        <thead><tr><th>Priority</th><th>Slot types</th></tr></thead>
+        <tbody>
+            {% for p, types in preference.items() %}
+            <tr><td>{{ p }}</td><td>{{ types|join(', ') }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<p class="text-muted small mt-2">Bikes additionally try "bike" slots first. Cars never use "bike" slots.</p>
+{% endblock %}

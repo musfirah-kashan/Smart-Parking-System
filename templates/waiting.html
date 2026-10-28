@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Waiting List{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+        <h2 class="mb-1">Waiting List</h2>
+        <p class="text-muted mb-0">
+            Used when parking is full. Order: Emergency, Disabled, EV, VIP, Normal;
+            vehicles with the same priority are served first come, first served.
+        </p>
+    </div>
+    {% if current_user.role == "admin" %}
+    <form method="POST" action="{{ url_for('process_waiting') }}">
+        <button type="submit" class="btn btn-primary">Serve waiting list now</button>
+    </form>
+    {% endif %}
+</div>
+
+<p class="mb-3">Vehicles waiting in total: <span class="badge bg-secondary fs-6">{{ total }}</span></p>
+
+{% if rows %}
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Position</th>
+                    <th>Vehicle</th>
+                    <th>Type</th>
+                    <th>Priority</th>
+                    <th>Waiting since</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td><strong>#{{ r.position }}</strong></td>
+                    <td>{{ r.vehicle.vehicle_number }}</td>
+                    <td>{{ r.vehicle.vehicle_type }}</td>
+                    <td><span class="badge {{ 'bg-warning' if r.vehicle.priority != 'Normal' else 'bg-secondary' }}">{{ r.vehicle.priority or 'Normal' }}</span></td>
+                    <td>{{ r.entry.joined_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                    <td class="text-end">
+                        <form method="POST" action="{{ url_for('cancel_waiting_entry', entry_id=r.entry.id) }}"
+                              onsubmit="return confirm('Leave the waiting list?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Leave queue</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    {% if total %}Other vehicles are waiting, but none of yours.{% else %}Nobody is waiting. Parking has free slots.{% endif %}
+</div>
+{% endif %}
+{% endblock %}

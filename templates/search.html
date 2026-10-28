@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% endblock %}
+
+{% block content %}
+<h2 class="mb-1">Search</h2>
+<p class="text-muted mb-4">Exact lookups use a hash table, so they take O(1) time.</p>
+
+<form method="GET" action="{{ url_for('search') }}" class="card shadow-sm mb-4">
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label" for="type">Search for</label>
+            <select name="type" id="type" class="form-select">
+                <option value="vehicle" {% if kind == 'vehicle' %}selected{% endif %}>Vehicle</option>
+                <option value="slot" {% if kind == 'slot' %}selected{% endif %}>Slot</option>
+                {% if current_user.role == 'admin' %}
+                <option value="user" {% if kind == 'user' %}selected{% endif %}>User</option>
+                {% endif %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="q">Vehicle number, slot number{% if current_user.role == 'admin' %}, or user email / phone / name{% endif %}</label>
+            <input type="text" name="q" id="q" class="form-control" value="{{ q }}" placeholder="e.g. ABC-123" autofocus>
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-primary w-100">Search</button>
+        </div>
+    </div>
+</form>
+
+{% if q %}
+    {% if info %}
+    <p class="text-muted small mb-3">
+        {{ info.method }} &middot; complexity {{ info.big_o }} &middot;
+        {{ info.steps }} step(s) &middot; {{ "%.3f"|format(info.ms) }} ms
+    </p>
+    {% endif %}
+
+    {% if results %}
+    <div class="row g-3">
+        {% for r in results %}
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+
+                {% if kind == 'vehicle' %}
+                    <h5 class="mb-2">{{ r.vehicle.vehicle_number }}</h5>
+                    <p class="mb-1 text-muted">{{ r.vehicle.vehicle_type }} &middot; {{ r.vehicle.priority or 'Normal' }} priority</p>
+                    {% if r.owner %}<p class="mb-1">Owner: {{ r.owner.name }}</p>{% endif %}
+                    {% if r.slot %}
+                        <p class="mb-1">Current slot: <span class="badge bg-danger">{{ r.slot.slot_number }}</span>
+                           ({{ r.slot.distance }} m from the gate)</p>
+                        <p class="mb-0 text-muted small">Parked since {{ r.record.entry_time.strftime("%Y-%m-%d %H:%M") }}</p>
+                    {% elif r.waiting %}
+                        <p class="mb-0"><span class="badge bg-warning">In waiting list</span></p>
+                    {% else %}
+                        <p class="mb-0"><span class="badge bg-secondary">Not parked</span></p>
+                    {% endif %}
+
+                {% elif kind == 'slot' %}
+                    <h5 class="mb-2">Slot {{ r.slot.slot_number }}</h5>
+                    <p class="mb-1 text-muted text-capitalize">{{ r.slot.slot_type }} &middot; {{ r.slot.distance }} m from the gate</p>
+                    <p class="mb-1"><span class="status-pill status-{{ r.slot.status }}">{{ r.slot.status }}</span></p>
+                    {% if r.vehicle %}
+                        <p class="mb-0">Vehicle: {{ r.vehicle.vehicle_number }}</p>
+                    {% elif r.record %}
+                        <p class="mb-0 text-muted">Occupied by another user's vehicle.</p>
+                    {% endif %}
+
+                {% else %}
+                    <h5 class="mb-2">{{ r.user.name }}</h5>
+                    <p class="mb-1 text-muted">{{ r.user.email }} &middot; {{ r.user.phone or 'no phone' }} &middot; {{ r.user.role }}</p>
+                    {% if r.vehicles %}
+                    <ul class="mb-0 ps-3">
+                        {% for c in r.vehicles %}
+                        <li>{{ c.vehicle.vehicle_number }} ({{ c.vehicle.vehicle_type }})
+                            {% if c.slot %}- slot {{ c.slot.slot_number }}{% else %}- not parked{% endif %}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="mb-0 text-muted">No vehicles registered.</p>
+                    {% endif %}
+                {% endif %}
+
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">Nothing found for "{{ q }}".</div>
+    {% endif %}
+{% endif %}
+{% endblock %}

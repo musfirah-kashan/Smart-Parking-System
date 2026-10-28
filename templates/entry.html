@@ -5,17 +5,49 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Vehicle Entry</h2>
-    <a class="btn btn-outline-secondary" href="{{ url_for('vehicle_exit') }}">Go to Exit</a>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('waiting') }}">Waiting List</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('vehicle_exit') }}">Go to Exit</a>
+    </div>
 </div>
 
+<p class="mb-3">
+    Available slots:
+    <span class="badge bg-success fs-6">{{ available_count }}</span>
+</p>
+
+{% if vehicles %}
+
+{# ---------- Option 1: Smart Park (Min Heap + Priority Queue) ---------- #}
+<div class="card shadow-sm mb-4 border-primary">
+    <div class="card-body">
+        <h5 class="mb-1">Smart Park <span class="badge bg-success align-middle">Recommended</span></h5>
+        <p class="text-muted mb-3">
+            The system checks your vehicle type and priority, finds the nearest suitable slot
+            (Min Heap) and parks you there. If everything is full you join the waiting list
+            (Priority Queue).
+        </p>
+        <form method="POST" action="{{ url_for('smart_entry') }}" class="row g-2 align-items-end">
+            <div class="col-md-8">
+                <label for="smart_vehicle" class="form-label">Select vehicle</label>
+                <select name="vehicle_id" id="smart_vehicle" class="form-select" required>
+                    <option value="">-- choose --</option>
+                    {% for v in vehicles %}
+                    <option value="{{ v.id }}">{{ v.vehicle_number }} ({{ v.vehicle_type }}, {{ v.priority or 'Normal' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Smart Park</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ---------- Option 2: choose the slot yourself (original flow) ---------- #}
 <div class="card shadow-sm">
     <div class="card-body">
-        <p class="mb-3">
-            Available slots:
-            <span class="badge bg-success fs-6">{{ available_count }}</span>
-        </p>
-
-        {% if vehicles %}
+        <h5 class="mb-3">Or choose a slot yourself</h5>
         <form method="POST" action="{{ url_for('vehicle_entry') }}">
             <div class="mb-4">
                 <label for="vehicle_id" class="form-label">Select vehicle</label>
@@ -72,19 +104,25 @@
             <div class="alert alert-warning">No slots have been created yet.</div>
             {% endif %}
 
-            <button type="submit" class="btn btn-primary" {% if available_count == 0 %}disabled{% endif %}>
-                Park Vehicle
+            <button type="submit" class="btn btn-outline-primary" {% if available_count == 0 %}disabled{% endif %}>
+                Park in selected slot
             </button>
             {% if available_count == 0 %}
-            <span class="text-danger ms-2">No available slots right now.</span>
+            <span class="text-danger ms-2">No available slots right now. Use Smart Park to join the waiting list.</span>
             {% endif %}
         </form>
-        {% else %}
-        <p class="text-muted">
-            No vehicle available for entry. Either add a vehicle first or all your vehicles are already parked.
-        </p>
-        <a class="btn btn-primary" href="{{ url_for('add_vehicle') }}">Add Vehicle</a>
-        {% endif %}
     </div>
 </div>
+
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p class="text-muted">
+            No vehicle available for entry. Either add a vehicle first, or all your vehicles are
+            already parked or waiting in the queue.
+        </p>
+        <a class="btn btn-primary" href="{{ url_for('add_vehicle') }}">Add Vehicle</a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

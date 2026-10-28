@@ -12,7 +12,7 @@
   <div class="mb-3">
     <label class="form-label">Slot Type</label>
     <select name="slot_type" class="form-select">
-      {% for t in ["normal", "bike", "handicapped"] %}
+      {% for t in slot_types %}
         <option value="{{ t }}" {% if slot and slot.slot_type == t %}selected{% endif %}>{{ t }}</option>
       {% endfor %}
     </select>

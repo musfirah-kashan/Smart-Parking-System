@@ -20,6 +20,19 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="mb-3">
+            <label class="form-label">Priority</label>
+            <select name="priority" class="form-select">
+                {% for p in priorities %}
+                {% set locked = p in ['Emergency', 'VIP'] and current_user.role != 'admin'
+                                and not (vehicle and vehicle.priority == p) %}
+                <option value="{{ p }}"
+                        {% if (vehicle and vehicle.priority == p) or (not vehicle and p == 'Normal') %}selected{% endif %}
+                        {% if locked %}disabled{% endif %}>{{ p }}{% if locked %} (admin only){% endif %}</option>
+                {% endfor %}
+            </select>
+            <div class="form-text">Higher priority vehicles are served first when parking is full.</div>
+        </div>
         <button type="submit" class="btn btn-primary w-100">Save</button>
     </form>
 
