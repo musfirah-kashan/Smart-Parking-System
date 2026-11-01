@@ -71,3 +71,15 @@ class WaitingEntry(db.Model):
     status = db.Column(db.String(20), default="waiting")
     joined_at = db.Column(db.DateTime)
     assigned_at = db.Column(db.DateTime)
+    
+class Booking(db.Model):
+    """Phase 7: a slot reserved for a vehicle for a date, time and duration."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"))
+    slot_id = db.Column(db.Integer, db.ForeignKey("parking_slot.id"))
+    start_time = db.Column(db.DateTime, nullable=False)
+    duration_hours = db.Column(db.Integer, default=1)
+    # active -> used (vehicle checked in) or cancelled
+    status = db.Column(db.String(20), default="active")
+    created_at = db.Column(db.DateTime)

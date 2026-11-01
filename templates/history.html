@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Parking History{% endblock %}
+
+{% block content %}
+<h3 class="mb-3">Parking History</h3>
+
+<form method="GET" class="row g-2 mb-4">
+    <div class="col-auto">
+        <select name="sort" class="form-select">
+            {% for value, label in [('date', 'Date'), ('slot', 'Slot'), ('duration', 'Duration'), ('fee', 'Fee')] %}
+            <option value="{{ value }}" {% if sort_by == value %}selected{% endif %}>Sort by {{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <select name="order" class="form-select">
+            <option value="desc" {% if order == 'desc' %}selected{% endif %}>Highest / Newest first</option>
+            <option value="asc" {% if order == 'asc' %}selected{% endif %}>Lowest / Oldest first</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Sort</button>
+    </div>
+</form>
+
+{% if rows %}
+<table class="table table-bordered bg-white">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Vehicle</th>
+            <th>Slot</th>
+            <th>Duration</th>
+            <th>Fee</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.record.entry_time.strftime('%d %b %Y, %I:%M %p') }}</td>
+            <td>{{ r.vehicle.vehicle_number if r.vehicle else '(deleted)' }}</td>
+            <td>{{ r.slot.slot_number if r.slot else '(deleted)' }}</td>
+            <td>{{ r.hours }} h</td>
+            <td>Rs.{{ '%.0f' % (r.record.fee or 0) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="4" class="text-end">Total</th>
+            <th>Rs.{{ '%.0f' % total_fee }}</th>
+        </tr>
+    </tfoot>
+</table>
+{% else %}
+<div class="alert alert-info">No completed parking yet.</div>
+{% endif %}
+{% endblock %}

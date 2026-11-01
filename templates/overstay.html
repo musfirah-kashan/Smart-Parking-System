@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Overstay Report{% endblock %}
+
+{% block content %}
+<h3 class="mb-2">Overstay Report</h3>
+<p class="text-muted">
+    Overstay means the vehicle left after its reserved time ended.
+    Extra fee: Rs.{{ rate }} per extra hour (a part of an hour counts as a full hour).
+</p>
+
+{% if rows %}
+<table class="table table-bordered bg-white">
+    <thead>
+        <tr>
+            <th>Vehicle</th>
+            <th>Slot</th>
+            <th>Reserved until</th>
+            <th>Actual exit</th>
+            <th>Result</th>
+            <th>Extra fee</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.vehicle.vehicle_number if r.vehicle else '(deleted)' }}</td>
+            <td>{{ r.slot.slot_number if r.slot else '(deleted)' }}</td>
+            <td>{{ r.reserved_until.strftime('%d %b %Y, %I:%M %p') }}</td>
+            <td>{{ r.exit_time.strftime('%d %b %Y, %I:%M %p') }}</td>
+            <td>
+                {% if r.late_minutes > 0 %}
+                <span class="badge text-bg-danger">OVERSTAY by {{ r.late_minutes // 60 }} h {{ r.late_minutes % 60 }} min</span>
+                {% else %}
+                <span class="badge text-bg-success">On time</span>
+                {% endif %}
+            </td>
+            <td>Rs.{{ '%.0f' % r.extra_fee }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="5" class="text-end">Total extra fee</th>
+            <th>Rs.{{ '%.0f' % total_extra }}</th>
+        </tr>
+    </tfoot>
+</table>
+{% else %}
+<div class="alert alert-info">No reserved parking has been completed yet.</div>
+{% endif %}
+{% endblock %}

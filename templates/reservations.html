@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}My Reservations{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>My Reservations</h3>
+    <a href="{{ url_for('new_reservation') }}" class="btn btn-primary">+ New Reservation</a>
+</div>
+
+{% if rows %}
+<table class="table table-bordered bg-white">
+    <thead>
+        <tr>
+            <th>Start</th>
+            <th>Until</th>
+            <th>Vehicle</th>
+            <th>Slot</th>
+            <th>Status</th>
+            <th style="width: 120px;">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.booking.start_time.strftime('%d %b %Y, %I:%M %p') }}</td>
+            <td>{{ r.end.strftime('%d %b %Y, %I:%M %p') }}</td>
+            <td>{{ r.vehicle.vehicle_number if r.vehicle else '(deleted)' }}</td>
+            <td>{{ r.slot.slot_number if r.slot else '(deleted)' }}</td>
+            <td>{{ r.booking.status }}</td>
+            <td>
+                {% if r.booking.status == 'active' %}
+                <form method="POST" action="{{ url_for('cancel_reservation', booking_id=r.booking.id) }}"
+                      onsubmit="return confirm('Cancel this reservation?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">No reservations yet.</div>
+{% endif %}
+{% endblock %}

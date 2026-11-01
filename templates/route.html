@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Route Finder{% endblock %}
+
+{% block content %}
+<h3 class="mb-3">Route to a Parking Slot</h3>
+
+<form method="GET" class="row g-2 mb-4">
+    <div class="col-auto">
+        <select name="slot" class="form-select" required>
+            <option value="">Choose a slot</option>
+            {% for s in slots %}
+            <option value="{{ s.slot_number }}" {% if s.slot_number == target %}selected{% endif %}>{{ s.slot_number }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Find route</button>
+    </div>
+</form>
+
+{% if result %}
+<div class="alert alert-success">
+    Your slot is <strong>{{ target }}</strong>. Shortest route:
+    <strong>{{ result.dij_path | join(' → ') }}</strong> ({{ result.dij_m }} m)
+</div>
+
+<table class="table table-bordered bg-white">
+    <thead>
+        <tr><th>Algorithm</th><th>Route</th><th>Distance</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>BFS (fewest roads)</td>
+            <td>{{ result.bfs_path | join(' → ') }}</td>
+            <td>{{ result.bfs_m }} m</td>
+        </tr>
+        <tr>
+            <td>Dijkstra (shortest distance)</td>
+            <td>{{ result.dij_path | join(' → ') }}</td>
+            <td>{{ result.dij_m }} m</td>
+        </tr>
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

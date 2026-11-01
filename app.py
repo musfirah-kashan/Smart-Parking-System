@@ -33,6 +33,11 @@ from dsa.parking_engine import (
     waiting_vehicle_ids,
 )
 
+from dsa.sorting import merge_sort
+from models import Booking
+from dsa.reservation import reserve_slot, booking_end, vehicle_is_busy
+from dsa.reservation import overstay_info, bookings_by_vehicle, OVERSTAY_RATE_PER_HOUR
+from dsa.route_planner import plan_route
 
 app = Flask(__name__)
 
@@ -1045,6 +1050,278 @@ def set_vehicle_priority(vehicle_id):
     flash(f"{vehicle.vehicle_number} is now {priority}.", "success")
     return redirect(url_for("admin_vehicles"))
 
+
+
+# ---------------- PARKING HISTORY (Phase 7: Sorting) ----------------
+
+HISTORY_SORT_FIELDS = {
+    "date": lambda r: r["record"].entry_time,
+    "slot": lambda r: r["slot"].slot_number if r["slot"] else "",
+    "duration": lambda r: r["hours"],
+    "fee": lambda r: r["record"].fee or 0,
+}
+
+
+@app.route("/history")
+@login_required
+def history():
+    sort_by = request.args.get("sort", "date")
+    order = request.args.get("order", "desc")
+    if sort_by not in HISTORY_SORT_FIELDS:
+        sort_by = "date"
+    if order not in ("asc", "desc"):
+        order = "desc"
+
+    # Sirf wo parking jo khatam ho chuki hai. Admin ko sab, user ko sirf apni.
+    query = ParkingRecord.query.filter(ParkingRecord.exit_time.isnot(None))
+    if current_user.role != "admin":
+        query = query.join(
+            Vehicle, ParkingRecord.vehicle_id == Vehicle.id
+        ).filter(Vehicle.user_id == current_user.id)
+
+    rows = []
+    for record in query.all():
+        rows.append(
+            {
+                "record": record,
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+                "hours": calculate_fee(record.entry_time, record.exit_time)[0],
+            }
+        )
+
+    rows = merge_sort(
+        rows, key=HISTORY_SORT_FIELDS[sort_by], reverse=(order == "desc")
+    )
+    total_fee = sum((r["record"].fee or 0) for r in rows)
+
+    return render_template(
+        "history.html",
+        rows=rows,
+        sort_by=sort_by,
+        order=order,
+        total_fee=total_fee,
+    )
+
+# ---------------- RESERVATIONS (Phase 7) ----------------
+
+@app.route("/reservations")
+@login_required
+def reservations():
+    query = Booking.query
+    if current_user.role != "admin":
+        query = query.filter_by(user_id=current_user.id)
+
+    rows = []
+    for b in query.order_by(Booking.start_time.desc()).all():
+        rows.append(
+            {
+                "booking": b,
+                "end": booking_end(b),
+                "vehicle": db.session.get(Vehicle, b.vehicle_id),
+                "slot": db.session.get(ParkingSlot, b.slot_id),
+            }
+        )
+    return render_template("reservations.html", rows=rows)
+
+
+@app.route("/reservations/new", methods=["GET", "POST"])
+@login_required
+def new_reservation():
+    my_vehicles = Vehicle.query.filter_by(user_id=current_user.id).all()
+
+    if request.method == "POST":
+        vehicle_id = request.form.get("vehicle_id", type=int)
+        vehicle = next((v for v in my_vehicles if v.id == vehicle_id), None)
+        if vehicle is None:
+            flash("Please select a valid vehicle.", "danger")
+            return redirect(url_for("new_reservation"))
+
+        try:
+            start = datetime.strptime(request.form.get("start", ""), "%Y-%m-%dT%H:%M")
+            hours = int(request.form.get("hours", ""))
+        except ValueError:
+            flash("Please enter a valid date, time and duration.", "danger")
+            return redirect(url_for("new_reservation"))
+
+        if start <= datetime.now():
+            flash("Reservation time must be in the future.", "danger")
+            return redirect(url_for("new_reservation"))
+
+        if hours < 1 or hours > 24:
+            flash("Duration must be between 1 and 24 hours.", "danger")
+            return redirect(url_for("new_reservation"))
+
+        if vehicle_is_busy(vehicle.id, start, hours):
+            flash("This vehicle already has a reservation at that time.", "danger")
+            return redirect(url_for("new_reservation"))
+
+        trace = []
+        slot = reserve_slot(vehicle, start, hours, trace)
+        if slot is None:
+            flash("No suitable slot is free at that time.", "danger")
+            return redirect(url_for("new_reservation"))
+
+        booking = Booking(
+            user_id=current_user.id,
+            vehicle_id=vehicle.id,
+            slot_id=slot.id,
+            start_time=start,
+            duration_hours=hours,
+            status="active",
+            created_at=datetime.now(),
+        )
+        db.session.add(booking)
+        db.session.commit()
+
+        flash(
+            f"Slot {slot.slot_number} reserved for {vehicle.vehicle_number} "
+            f"on {start.strftime('%d %b %Y, %I:%M %p')} for {hours} hour(s).",
+            "success",
+        )
+        flash("Smart allocation: " + " > ".join(trace), "info")
+        return redirect(url_for("reservations"))
+
+    return render_template("reservation_form.html", vehicles=my_vehicles)
+
+
+@app.route("/reservations/<int:booking_id>/cancel", methods=["POST"])
+@login_required
+def cancel_reservation(booking_id):
+    booking = db.session.get(Booking, booking_id)
+    if booking is None or booking.status != "active":
+        abort(404)
+    if current_user.role != "admin" and booking.user_id != current_user.id:
+        abort(404)
+
+    booking.status = "cancelled"
+    db.session.commit()
+
+    flash("Reservation cancelled.", "success")
+    return redirect(url_for("reservations"))
+
+# ---------------- OVERSTAY ----------------
+
+@app.route("/overstay")
+@login_required
+def overstay():
+    query = ParkingRecord.query.filter(ParkingRecord.exit_time.isnot(None))
+    if current_user.role != "admin":
+        query = query.join(
+            Vehicle, ParkingRecord.vehicle_id == Vehicle.id
+        ).filter(Vehicle.user_id == current_user.id)
+
+    booking_table = bookings_by_vehicle()
+    rows = []
+    for record in query.order_by(ParkingRecord.exit_time.desc()).all():
+        info = overstay_info(record, booking_table)
+        if info is None:
+            continue          # is parking ki koi reservation nahi thi
+        rows.append(
+            {
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+                "reserved_until": booking_end(info["booking"]),
+                "exit_time": record.exit_time,
+                "late_minutes": info["late_minutes"],
+                "extra_fee": info["extra_fee"],
+            }
+        )
+
+    total_extra = sum(r["extra_fee"] for r in rows)
+    return render_template(
+        "overstay.html",
+        rows=rows,
+        total_extra=total_extra,
+        rate=OVERSTAY_RATE_PER_HOUR,
+    )
+
+# ---------------- ROUTE FINDER (Phase 8: BFS + Dijkstra) ----------------
+
+@app.route("/route")
+@login_required
+def route_finder():
+    all_slots = ParkingSlot.query.order_by(ParkingSlot.slot_number).all()
+    target = request.args.get("slot", "").strip().upper()
+    result = None
+    if target:
+        result = plan_route(all_slots, target)
+        if result is None:
+            flash("Slot not found.", "danger")
+    return render_template(
+        "route.html", slots=all_slots, target=target, result=result
+    )
+
+# ---------------- ADMIN DASHBOARD (Phase 8) ----------------
+
+@app.route("/admin/dashboard")
+@admin_required
+def admin_dashboard():
+    now = datetime.now()
+
+    # slot status counts
+    status_counts = {}
+    for status in VALID_SLOT_STATUSES:
+        status_counts[status] = ParkingSlot.query.filter_by(status=status).count()
+
+    # money
+    total_paid = sum(
+        p.amount for p in Payment.query.filter_by(status="paid").all()
+    )
+    total_pending = sum(
+        p.amount for p in Payment.query.filter_by(status="pending").all()
+    )
+
+    # overstay extra fee (from finished parkings that had a booking)
+    booking_table = bookings_by_vehicle()
+    overstay_total = 0
+    overstay_count = 0
+    for record in ParkingRecord.query.filter(
+        ParkingRecord.exit_time.isnot(None)
+    ).all():
+        info = overstay_info(record, booking_table)
+        if info and info["late_minutes"] > 0:
+            overstay_count += 1
+            overstay_total += info["extra_fee"]
+
+    # last 5 exits
+    recent = []
+    last_exits = (
+        ParkingRecord.query.filter(ParkingRecord.exit_time.isnot(None))
+        .order_by(ParkingRecord.exit_time.desc())
+        .limit(5)
+        .all()
+    )
+    for record in last_exits:
+        recent.append(
+            {
+                "record": record,
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+            }
+        )
+
+    stats = {
+        "users": User.query.count(),
+        "vehicles": Vehicle.query.count(),
+        "slots": ParkingSlot.query.count(),
+        "parked": ParkingRecord.query.filter(
+            ParkingRecord.exit_time.is_(None)
+        ).count(),
+        "waiting": WaitingEntry.query.filter_by(status="waiting").count(),
+        "reservations": Booking.query.filter_by(status="active").count(),
+    }
+
+    return render_template(
+        "admin_dashboard.html",
+        stats=stats,
+        status_counts=status_counts,
+        total_paid=total_paid,
+        total_pending=total_pending,
+        overstay_total=overstay_total,
+        overstay_count=overstay_count,
+        recent=recent,
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

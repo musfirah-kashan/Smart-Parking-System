@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}New Reservation{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 450px;">
+    <h3 class="mb-4">New Reservation</h3>
+
+    {% if vehicles %}
+    <form method="POST">
+        <div class="mb-3">
+            <label class="form-label">Vehicle</label>
+            <select name="vehicle_id" class="form-select" required>
+                {% for v in vehicles %}
+                <option value="{{ v.id }}">{{ v.vehicle_number }} ({{ v.vehicle_type }}, {{ v.priority or 'Normal' }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Date and time</label>
+            <input type="datetime-local" name="start" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Duration (hours)</label>
+            <input type="number" name="hours" class="form-control" min="1" max="24" value="1" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Reserve</button>
+    </form>
+    {% else %}
+    <div class="alert alert-info">Add a vehicle first, then come back to reserve a slot.</div>
+    {% endif %}
+
+    <a href="{{ url_for('reservations') }}" class="btn btn-outline-secondary mt-3">My Reservations</a>
+</div>
+{% endblock %}

@@ -47,12 +47,17 @@
                         <a class="nav-link {{ 'active' if ep in ['waiting'] }}" href="{{ url_for('waiting') }}">Waiting</a>
                         <a class="nav-link {{ 'active' if ep in ['vehicle_exit', 'payment'] }}" href="{{ url_for('vehicle_exit') }}">Exit</a>
                         <a class="nav-link {{ 'active' if ep == 'search' }}" href="{{ url_for('search') }}">Search</a>
+                        <a class="nav-link {{ 'active' if ep == 'history' }}" href="{{ url_for('history') }}">History</a>
+                        <a class="nav-link {{ 'active' if ep in ['reservations', 'new_reservation'] }}" href="{{ url_for('reservations') }}">Reservations</a>
+                        <a class="nav-link {{ 'active' if ep == 'overstay' }}" href="{{ url_for('overstay') }}">Overstay</a>
+<a class="nav-link {{ 'active' if ep == 'route_finder' }}" href="{{ url_for('route_finder') }}">Route</a>
                         <a class="nav-link {{ 'active' if ep == 'profile' }}" href="{{ url_for('profile') }}">Profile</a>
                         {% if current_user.role == "admin" %}
                             <div class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle {{ 'active' if ep in ['admin_users', 'admin_vehicles', 'dsa_lab'] }}"
+                                <a class="nav-link dropdown-toggle {{ 'active' if ep in ['admin_dashboard', 'admin_users', 'admin_vehicles', 'dsa_lab'] }}"
                                    href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin</a>
                                 <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">Manage Users</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('admin_vehicles') }}">All Vehicles</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('dsa_lab') }}">DSA Lab</a></li>

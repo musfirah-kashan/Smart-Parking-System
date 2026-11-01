@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h3 class="mb-4">Admin Dashboard</h3>
+
+<div class="row g-3 mb-4">
+    {% for label, value in [
+        ('Users', stats.users),
+        ('Vehicles', stats.vehicles),
+        ('Parking slots', stats.slots),
+        ('Parked now', stats.parked),
+        ('Waiting list', stats.waiting),
+        ('Active reservations', stats.reservations)
+    ] %}
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <h6 class="text-muted">{{ label }}</h6>
+                <h2>{{ value }}</h2>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="mb-3">Slot status</h5>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">Available <span class="badge text-bg-success">{{ status_counts.available }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between">Occupied <span class="badge text-bg-danger">{{ status_counts.occupied }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between">Reserved <span class="badge text-bg-warning">{{ status_counts.reserved }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between">Maintenance <span class="badge text-bg-secondary">{{ status_counts.maintenance }}</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="mb-3">Revenue</h5>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">Received <strong>Rs.{{ '%.0f' % total_paid }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between">Pending <strong>Rs.{{ '%.0f' % total_pending }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between">Overstay extra fee ({{ overstay_count }} case(s)) <strong>Rs.{{ '%.0f' % overstay_total }}</strong></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h5 class="mb-3">Recent exits</h5>
+{% if recent %}
+<table class="table table-bordered bg-white mb-4">
+    <thead>
+        <tr><th>Vehicle</th><th>Slot</th><th>Exit time</th><th>Fee</th></tr>
+    </thead>
+    <tbody>
+        {% for r in recent %}
+        <tr>
+            <td>{{ r.vehicle.vehicle_number if r.vehicle else '(deleted)' }}</td>
+            <td>{{ r.slot.slot_number if r.slot else '(deleted)' }}</td>
+            <td>{{ r.record.exit_time.strftime('%d %b %Y, %I:%M %p') }}</td>
+            <td>Rs.{{ '%.0f' % (r.record.fee or 0) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">No completed parking yet.</div>
+{% endif %}
+
+<div class="d-flex flex-wrap gap-2">
+    <a href="{{ url_for('slots') }}" class="btn btn-outline-primary">Parking Slots</a>
+    <a href="{{ url_for('admin_users') }}" class="btn btn-outline-primary">Manage Users</a>
+    <a href="{{ url_for('admin_vehicles') }}" class="btn btn-outline-primary">All Vehicles</a>
+    <a href="{{ url_for('overstay') }}" class="btn btn-outline-primary">Overstay Report</a>
+    <a href="{{ url_for('route_finder') }}" class="btn btn-outline-primary">Route Finder</a>
+    <a href="{{ url_for('dsa_lab') }}" class="btn btn-outline-primary">DSA Lab</a>
+</div>
+{% endblock %}
