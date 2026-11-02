@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Parking Ticket{% endblock %}
+
+{% block content %}
+<style>
+    .qr-box svg { width: 220px; height: 220px; }
+    @media print {
+        .navbar, footer, .no-print { display: none !important; }
+    }
+</style>
+
+<div class="card mx-auto" style="max-width: 420px;">
+    <div class="card-body text-center">
+        <h4 class="mb-1">Smart Parking</h4>
+        <p class="text-muted mb-3">Parking Ticket #{{ record.id }}</p>
+
+        <div class="qr-box d-flex justify-content-center mb-3">
+            {{ qr_svg|safe }}
+        </div>
+
+        <table class="table table-sm text-start mb-3">
+            <tr><th>Vehicle</th><td>{{ vehicle.vehicle_number }}</td></tr>
+            <tr><th>Type</th><td>{{ vehicle.vehicle_type }}</td></tr>
+            <tr><th>Slot</th><td>{{ slot.slot_number if slot else '-' }}</td></tr>
+            <tr><th>Entry</th><td>{{ record.entry_time.strftime('%d %b %Y, %I:%M %p') }}</td></tr>
+            <tr>
+                <th>Status</th>
+                <td>
+                    {% if record.exit_time %}
+                        <span class="badge bg-secondary">Completed</span>
+                    {% else %}
+                        <span class="badge bg-success">Parked</span>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+
+        <div class="d-flex gap-2 justify-content-center no-print">
+            <button onclick="window.print()" class="btn btn-primary">Print</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Back</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

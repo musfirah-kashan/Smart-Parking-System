@@ -1,3 +1,6 @@
+import io
+import qrcode
+import qrcode.image.svg
 import math
 import os
 import re
@@ -229,16 +232,104 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    vehicle_count = Vehicle.query.filter_by(user_id=current_user.id).count()
+    now = datetime.now()
+    my_vehicles = Vehicle.query.filter_by(user_id=current_user.id).all()
+    my_vehicle_ids = [v.id for v in my_vehicles]
+
+    vehicle_count = len(my_vehicles)
     available_slots = ParkingSlot.query.filter_by(status="available").count()
     waiting_count = WaitingEntry.query.filter_by(status="waiting").count()
+
+    # ---- Current parking ----
+    current_parking = []
+    for record in ParkingRecord.query.filter(
+        ParkingRecord.exit_time.is_(None),
+        ParkingRecord.vehicle_id.in_(my_vehicle_ids),
+    ).order_by(ParkingRecord.entry_time).all():
+        hours, fee = calculate_fee(record.entry_time, now)
+        current_parking.append(
+            {
+                "record": record,
+                "vehicle": db.session.get(Vehicle, record.vehicle_id),
+                "slot": db.session.get(ParkingSlot, record.slot_id),
+                "hours": hours,
+                "fee": fee,
+            }
+        )
+
+    # ---- Reservation status----
+    my_bookings = []
+    for b in Booking.query.filter_by(user_id=current_user.id).order_by(
+        Booking.start_time.desc()
+    ).limit(5).all():
+        end = booking_end(b)
+        if b.status == "cancelled":
+            label = "Cancelled"
+        elif end < now:
+            label = "Finished"
+        elif b.start_time <= now:
+            label = "Ongoing"
+        else:
+            label = "Upcoming"
+        my_bookings.append(
+            {
+                "booking": b,
+                "end": end,
+                "label": label,
+                "vehicle": db.session.get(Vehicle, b.vehicle_id),
+                "slot": db.session.get(ParkingSlot, b.slot_id),
+            }
+        )
+
+    # ---- Notifications ----
+    notifications = []
+
+    for row in current_parking:
+        notifications.append(
+            ("info", f"{row['vehicle'].vehicle_number} is parked at slot "
+                     f"{row['slot'].slot_number}. Fee so far: Rs.{row['fee']:.0f}.")
+        )
+
+    for item in my_bookings:
+        b = item["booking"]
+        if b.status != "active":
+            continue
+        minutes_left = (b.start_time - now).total_seconds() / 60
+        if 0 < minutes_left <= 60:
+            notifications.append(
+                ("warning", f"Reservation for {item['vehicle'].vehicle_number} "
+                            f"starts in {int(minutes_left)} minute(s) at slot "
+                            f"{item['slot'].slot_number}.")
+            )
+
+    for row in current_parking:
+        for b in Booking.query.filter_by(
+            vehicle_id=row["vehicle"].id, status="active"
+        ).all():
+            if b.start_time <= now > booking_end(b):
+                notifications.append(
+                    ("danger", f"{row['vehicle'].vehicle_number} is overstaying "
+                               f"its reservation. Extra fee applies.")
+                )
+
+    waiting_mine = WaitingEntry.query.filter(
+        WaitingEntry.status == "waiting",
+        WaitingEntry.vehicle_id.in_(my_vehicle_ids),
+    ).count()
+    if waiting_mine:
+        notifications.append(
+            ("warning", f"{waiting_mine} of your vehicle(s) are in the waiting list.")
+        )
+
     return render_template(
         "dashboard.html",
         vehicle_count=vehicle_count,
         available_slots=available_slots,
         waiting_count=waiting_count,
+        current_parking=current_parking,
+        my_bookings=my_bookings,
+        notifications=notifications,
     )
-
 
 # ---------------- PROFILE ----------------
 
@@ -1199,6 +1290,49 @@ def cancel_reservation(booking_id):
 
     flash("Reservation cancelled.", "success")
     return redirect(url_for("reservations"))
+
+# ---------------- QR TICKET  ----------------
+
+def make_qr_svg(data):
+    img = qrcode.make(
+        data, image_factory=qrcode.image.svg.SvgPathImage, box_size=10
+    )
+    buf = io.BytesIO()
+    img.save(buf)
+    svg = buf.getvalue().decode("utf-8")
+    return svg.split("?>", 1)[-1]     
+
+
+@app.route("/ticket/<int:record_id>")
+@login_required
+def ticket(record_id):
+    record = db.session.get(ParkingRecord, record_id)
+    if record is None:
+        abort(404)
+
+    vehicle = db.session.get(Vehicle, record.vehicle_id)
+    if vehicle is None or (
+        current_user.role != "admin" and vehicle.user_id != current_user.id
+    ):
+        abort(404)
+
+    slot = db.session.get(ParkingSlot, record.slot_id)
+    slot_number = slot.slot_number if slot else "-"
+
+    qr_text = (
+        f"SMART PARKING TICKET #{record.id}\n"
+        f"Vehicle: {vehicle.vehicle_number}\n"
+        f"Slot: {slot_number}\n"
+        f"Entry: {record.entry_time.strftime('%d %b %Y %I:%M %p')}"
+    )
+
+    return render_template(
+        "ticket.html",
+        record=record,
+        vehicle=vehicle,
+        slot=slot,
+        qr_svg=make_qr_svg(qr_text),
+    )
 
 # ---------------- OVERSTAY ----------------
 

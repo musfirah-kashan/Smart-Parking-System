@@ -6,6 +6,24 @@
 <h3 class="mb-1">Welcome, {{ current_user.name }}!</h3>
 <p class="text-muted mb-4">Here is a quick look at your parking.</p>
 
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="mb-3">
+            Notifications
+            {% if notifications %}
+                <span class="badge bg-danger ms-1">{{ notifications|length }}</span>
+            {% endif %}
+        </h5>
+        {% if notifications %}
+            {% for category, message in notifications %}
+                <div class="alert alert-{{ category }} py-2 mb-2">{{ message }}</div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted mb-0">You're all caught up. No new notifications.</p>
+        {% endif %}
+    </div>
+</div>
+
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="card stat-card lift">
@@ -47,6 +65,104 @@
                 </div>
             </div>
         </a>
+    </div>
+</div>
+
+<h5 class="mb-3">Current parking</h5>
+<div class="card mb-4">
+    <div class="card-body">
+        {% if current_parking %}
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Vehicle</th>
+                        <th>Slot</th>
+                        <th>Parked since</th>
+                        <th>Duration</th>
+                        <th>Fee so far</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in current_parking %}
+                    <tr>
+                        <td>{{ row.vehicle.vehicle_number }}</td>
+                        <td>{{ row.slot.slot_number }}</td>
+                        <td>{{ row.record.entry_time.strftime('%d %b, %I:%M %p') }}</td>
+                        <td>{{ row.hours }} hour(s)</td>
+                        <td>Rs.{{ '%.0f'|format(row.fee) }}</td>
+                        <td class="text-nowrap">
+                            <a href="{{ url_for('ticket', record_id=row.record.id) }}" class="btn btn-sm btn-outline-secondary">Ticket</a>
+                            <a href="{{ url_for('vehicle_exit') }}" class="btn btn-sm btn-outline-primary">Exit and pay</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-2">None of your vehicles is parked right now.</p>
+        <a href="{{ url_for('vehicle_entry') }}" class="btn btn-sm btn-primary">Park a vehicle</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Reservation status</h5>
+    <a href="{{ url_for('new_reservation') }}" class="btn btn-sm btn-primary">New reservation</a>
+</div>
+<div class="card mb-4">
+    <div class="card-body">
+        {% if my_bookings %}
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Vehicle</th>
+                        <th>Slot</th>
+                        <th>From</th>
+                        <th>Until</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in my_bookings %}
+                    <tr>
+                        <td>{{ item.vehicle.vehicle_number }}</td>
+                        <td>{{ item.slot.slot_number }}</td>
+                        <td>{{ item.booking.start_time.strftime('%d %b, %I:%M %p') }}</td>
+                        <td>{{ item.end.strftime('%d %b, %I:%M %p') }}</td>
+                        <td>
+                            {% if item.label == 'Upcoming' %}
+                                <span class="badge bg-primary">Upcoming</span>
+                            {% elif item.label == 'Ongoing' %}
+                                <span class="badge bg-success">Ongoing</span>
+                            {% elif item.label == 'Finished' %}
+                                <span class="badge bg-secondary">Finished</span>
+                            {% else %}
+                                <span class="badge bg-danger">Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.label == 'Upcoming' %}
+                            <form method="post" action="{{ url_for('cancel_reservation', booking_id=item.booking.id) }}"
+                                  onsubmit="return confirm('Cancel this reservation?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <a href="{{ url_for('reservations') }}" class="small">View all reservations</a>
+        {% else %}
+        <p class="text-muted mb-2">You have no reservations yet.</p>
+        <a href="{{ url_for('new_reservation') }}" class="btn btn-sm btn-primary">Reserve a slot</a>
+        {% endif %}
     </div>
 </div>
 
