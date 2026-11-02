@@ -29,6 +29,9 @@ ADMIN_ONLY_PRIORITIES = ("Emergency", "VIP")
 
 SLOT_TYPES = ["normal", "bike", "handicapped", "ev", "vip", "emergency"]
 
+# allocation score = distance (m) + TYPE_PENALTY * (rank of the slot type in the vehicle's preference list). Lower score wins.
+TYPE_PENALTY = 40
+
 # "Find suitable slots": slot types each priority class may use, best first
 SLOT_PREFERENCE = {
     "Emergency": ["emergency", "normal", "vip", "handicapped", "ev"],
@@ -210,23 +213,33 @@ def build_slot_heaps():
 
 
 def pick_best_slot(vehicle, heaps, trace=None):
-    """Vehicle type + priority -> suitable slot types -> min heap -> best slot.
-
-    Pops the winner out of `heaps`, so calling it again for the next vehicle
-    can never hand out the same slot twice.
-    """
     trace = trace if trace is not None else []
     types = suitable_slot_types(vehicle.vehicle_type, vehicle.priority or "Normal")
     trace.append(f"{vehicle.vehicle_type} / {vehicle.priority or 'Normal'} "
                  f"-> suitable slot types: {', '.join(types)}")
-    for t in types:
+
+    best = None                                   # (score, slot type)
+    for step, t in enumerate(types):
         heap = heaps.get(t)
         if heap is None or heap.is_empty():
             trace.append(f"'{t}' heap is empty - skip")
             continue
-        (distance, number), slot_id = heap.pop_min()      # extractMin()
-        trace.append(f"'{t}' heap -> extractMin() = {number} ({distance:g} m)")
-        return db.session.get(ParkingSlot, slot_id)
+        (distance, number), _slot_id = heap.peek()
+        penalty = TYPE_PENALTY * step
+        score = distance + penalty
+        trace.append(f"'{t}': nearest {number} = {distance:g} m + penalty "
+                     f"{penalty:g} -> score {score:g}")
+        if best is None or score < best[0]:       # strict <  : ties keep the better type
+            best = (score, t)
+
+    if best is None:
+        trace.append("no suitable slot is free")
+        return None
+
+    score, t = best
+    (distance, number), slot_id = heaps[t].pop_min()      # extractMin()
+    trace.append(f"lowest score wins: '{t}' slot {number} (score {score:g})")
+    return db.session.get(ParkingSlot, slot_id)
     trace.append("no suitable slot is free")
     return None
 
@@ -241,17 +254,37 @@ def waiting_entries():
 def waiting_vehicle_ids():
     return {e.vehicle_id for e in waiting_entries()}
 
+# PHASE 10
+AGING_MINUTES = 30    
+MAX_BOOST = 1          
+
+def effective_rank(base_rank, joined_at, now=None):
+    """Base rank lowered by 1 for every AGING_MINUTES of waiting, but never by
+    more than MAX_BOOST levels. Emergency (0) is never touched, and nobody
+    drops below rank 1, so aging cannot overtake an Emergency vehicle.
+    """
+    if base_rank == 0 or joined_at is None:
+        return base_rank
+    now = now or datetime.now()
+    waited = max(0, int((now - joined_at).total_seconds() // 60))
+    boost = min(MAX_BOOST, waited // AGING_MINUTES)
+    return max(1, base_rank - boost)
 
 def build_waiting_pq():
-    """Priority queue of waiting entries (rank first, then arrival order)."""
+    """Priority queue of waiting entries (effective rank first, then arrival order).
+
+    The effective rank includes the aging bonus, and the queue is rebuilt every
+    time it is needed, so the order is always up to date.
+    """
+    now = datetime.now()
     pq = PriorityQueue()
     for e in waiting_entries():
         v = db.session.get(Vehicle, e.vehicle_id)
         if v is None:
             continue
-        pq.push(e, PRIORITY_RANK.get(v.priority or "Normal", 4), order=e.id)
+        base = PRIORITY_RANK.get(v.priority or "Normal", 4)
+        pq.push(e, effective_rank(base, e.joined_at, now), order=e.id)
     return pq
-
 
 def build_waiting_fifo():
     """Plain FIFO view (arrival order only) - used to compare with the priority queue."""

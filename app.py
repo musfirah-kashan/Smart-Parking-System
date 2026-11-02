@@ -22,7 +22,8 @@ from models import db, User, Vehicle, ParkingSlot, ParkingRecord, Payment, Waiti
 import models
 from dsa.parking_engine import (
     ADMIN_ONLY_PRIORITIES,
-    PRIORITY_LEVELS,
+    PRIORITY_LEVELS,  
+    PRIORITY_RANK,
     SLOT_PREFERENCE,
     SLOT_TYPES,
     assign_waiting_vehicles,
@@ -530,8 +531,27 @@ def delete_vehicle(vehicle_id):
 @app.route("/slots")
 @login_required
 def slots():
-    all_slots = ParkingSlot.query.order_by(ParkingSlot.slot_number).all()
-    return render_template("slots.html", slots=all_slots)
+    type_filter = request.args.get("type", "").strip().lower()
+    query = ParkingSlot.query
+    if type_filter in SLOT_TYPES:
+        query = query.filter(ParkingSlot.slot_type == type_filter)
+    else:
+        type_filter = ""
+    all_slots = query.order_by(ParkingSlot.slot_number).all()
+
+    # har type ki kitni slots abhi khali hain
+    free_by_type = {t: 0 for t in SLOT_TYPES}
+    for s in ParkingSlot.query.filter_by(status="available").all():
+        t = (s.slot_type or "normal").lower()
+        free_by_type[t] = free_by_type.get(t, 0) + 1
+
+    return render_template(
+        "slots.html",
+        slots=all_slots,
+        type_filter=type_filter,
+        slot_types=SLOT_TYPES,
+        free_by_type=free_by_type,
+    )
 
 @app.route("/slots/add", methods=["GET", "POST"])
 @admin_required
@@ -961,7 +981,15 @@ def waiting():
         vehicle = db.session.get(Vehicle, entry.vehicle_id)
         if current_user.role != "admin" and vehicle.user_id != current_user.id:
             continue                      # users only see their own rows
-        rows.append({"position": position, "entry": entry, "vehicle": vehicle})
+        base = PRIORITY_RANK.get(vehicle.priority or "Normal", 4)
+        rows.append(
+            {
+                "position": position,
+                "entry": entry,
+                "vehicle": vehicle,
+                "boost": base - rank,      # aging se kitne darje behtar hua
+            }
+        )
     return render_template("waiting.html", rows=rows, total=total)
 
 
