@@ -1,36 +1,53 @@
+
 {% extends "base.html" %}
 
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<h3 class="mb-1">Welcome, {{ current_user.name }}!</h3>
-<p class="text-muted mb-4">Here is a quick look at your parking.</p>
 
+<div class="page-header mb-4">
+    <div>
+        <h2 class="mb-1">Welcome, {{ current_user.name }}!</h2>
+        <p class="text-muted mb-0">Here is a quick look at your parking activity.</p>
+    </div>
+</div>
+
+<!-- Notifications -->
 <div class="card mb-4">
     <div class="card-body">
-        <h5 class="mb-3">
-            Notifications
+        <h5 class="mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-bell"></i> Notifications
+
             {% if notifications %}
-                <span class="badge bg-danger ms-1">{{ notifications|length }}</span>
+                <span class="badge bg-danger">{{ notifications|length }}</span>
             {% endif %}
         </h5>
+
         {% if notifications %}
             {% for category, message in notifications %}
-                <div class="alert alert-{{ category }} py-2 mb-2">{{ message }}</div>
+                <div class="alert alert-{{ category }} py-2 mb-2">
+                    {{ message }}
+                </div>
             {% endfor %}
         {% else %}
-            <p class="text-muted mb-0">You're all caught up. No new notifications.</p>
+            <p class="text-muted mb-0">
+                You're all caught up. No new notifications.
+            </p>
         {% endif %}
     </div>
 </div>
 
+<!-- Statistics -->
 <div class="row g-3 mb-4">
+
+    <!-- My Vehicles -->
     <div class="col-md-4">
         <div class="card stat-card lift">
             <div class="card-body">
                 <div class="stat-icon stat-icon-blue">
-                    <svg class="icon" viewBox="0 0 24 24"><path d="M5 17h14M3 13l2-6h14l2 6v4H3z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/></svg>
+                    <i class="fa-solid fa-car"></i>
                 </div>
+
                 <div>
                     <h6 class="text-muted mb-1">My Vehicles</h6>
                     <h2>{{ vehicle_count }}</h2>
@@ -38,12 +55,15 @@
             </div>
         </div>
     </div>
+
+    <!-- Available Slots -->
     <div class="col-md-4">
         <div class="card stat-card lift">
             <div class="card-body">
                 <div class="stat-icon stat-icon-green">
-                    <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <i class="fa-solid fa-table-cells-large"></i>
                 </div>
+
                 <div>
                     <h6 class="text-muted mb-1">Available Slots</h6>
                     <h2>{{ available_slots }}</h2>
@@ -51,13 +71,16 @@
             </div>
         </div>
     </div>
+
+    <!-- Waiting List -->
     <div class="col-md-4">
         <a href="{{ url_for('waiting') }}" class="text-decoration-none">
             <div class="card stat-card lift">
                 <div class="card-body">
                     <div class="stat-icon stat-icon-orange">
-                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                        <i class="fa-regular fa-clock"></i>
                     </div>
+
                     <div>
                         <h6 class="text-muted mb-1">Waiting List</h6>
                         <h2>{{ waiting_count }}</h2>
@@ -66,130 +89,306 @@
             </div>
         </a>
     </div>
+
 </div>
 
+<!-- Current Parking -->
 <h5 class="mb-3">Current parking</h5>
+
 <div class="card mb-4">
     <div class="card-body">
+
         {% if current_parking %}
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Vehicle</th>
-                        <th>Slot</th>
-                        <th>Parked since</th>
-                        <th>Duration</th>
-                        <th>Fee so far</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in current_parking %}
-                    <tr>
-                        <td>{{ row.vehicle.vehicle_number }}</td>
-                        <td>{{ row.slot.slot_number }}</td>
-                        <td>{{ row.record.entry_time.strftime('%d %b, %I:%M %p') }}</td>
-                        <td>{{ row.hours }} hour(s)</td>
-                        <td>Rs.{{ '%.0f'|format(row.fee) }}</td>
-                        <td class="text-nowrap">
-                            <a href="{{ url_for('ticket', record_id=row.record.id) }}" class="btn btn-sm btn-outline-secondary">Ticket</a>
-                            <a href="{{ url_for('vehicle_exit') }}" class="btn btn-sm btn-outline-primary">Exit and pay</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+
+                    <thead>
+                        <tr>
+                            <th>Vehicle</th>
+                            <th>Slot</th>
+                            <th>Parked since</th>
+                            <th>Duration</th>
+                            <th>Fee so far</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in current_parking %}
+                        <tr>
+
+                            <td>
+                                {{ row.vehicle.vehicle_number }}
+                            </td>
+
+                            <td>
+                                {{ row.slot.slot_number }}
+                            </td>
+
+                            <td>
+                                {{ row.record.entry_time.strftime('%d %b, %I:%M %p') }}
+                            </td>
+
+                            <td>
+                                {{ row.hours }} hour(s)
+                            </td>
+
+                            <td>
+                                Rs.{{ '%.0f'|format(row.fee) }}
+                            </td>
+
+                            <td class="text-nowrap">
+
+                                <a href="{{ url_for('ticket', record_id=row.record.id) }}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fa-solid fa-ticket"></i>
+                                    Ticket
+                                </a>
+
+                                <a href="{{ url_for('vehicle_exit') }}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-right-from-bracket"></i>
+                                    Exit and pay
+                                </a>
+
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
         {% else %}
-        <p class="text-muted mb-2">None of your vehicles is parked right now.</p>
-        <a href="{{ url_for('vehicle_entry') }}" class="btn btn-sm btn-primary">Park a vehicle</a>
+
+            <p class="text-muted mb-2">
+                None of your vehicles is parked right now.
+            </p>
+
+            <a href="{{ url_for('vehicle_entry') }}"
+               class="btn btn-sm btn-primary">
+                <i class="fa-solid fa-car"></i>
+                Park a vehicle
+            </a>
+
         {% endif %}
+
     </div>
 </div>
 
+<!-- Reservation Status -->
 <div class="d-flex justify-content-between align-items-center mb-3">
+
     <h5 class="mb-0">Reservation status</h5>
-    <a href="{{ url_for('new_reservation') }}" class="btn btn-sm btn-primary">New reservation</a>
+
+    <a href="{{ url_for('new_reservation') }}"
+       class="btn btn-sm btn-primary">
+        <i class="fa-solid fa-calendar-plus"></i>
+        New reservation
+    </a>
+
 </div>
+
 <div class="card mb-4">
     <div class="card-body">
+
         {% if my_bookings %}
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Vehicle</th>
-                        <th>Slot</th>
-                        <th>From</th>
-                        <th>Until</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in my_bookings %}
-                    <tr>
-                        <td>{{ item.vehicle.vehicle_number }}</td>
-                        <td>{{ item.slot.slot_number }}</td>
-                        <td>{{ item.booking.start_time.strftime('%d %b, %I:%M %p') }}</td>
-                        <td>{{ item.end.strftime('%d %b, %I:%M %p') }}</td>
-                        <td>
-                            {% if item.label == 'Upcoming' %}
-                                <span class="badge bg-primary">Upcoming</span>
-                            {% elif item.label == 'Ongoing' %}
-                                <span class="badge bg-success">Ongoing</span>
-                            {% elif item.label == 'Finished' %}
-                                <span class="badge bg-secondary">Finished</span>
-                            {% else %}
-                                <span class="badge bg-danger">Cancelled</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if item.label == 'Upcoming' %}
-                            <form method="post" action="{{ url_for('cancel_reservation', booking_id=item.booking.id) }}"
-                                  onsubmit="return confirm('Cancel this reservation?');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
-                            </form>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <a href="{{ url_for('reservations') }}" class="small">View all reservations</a>
+
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+
+                    <thead>
+                        <tr>
+                            <th>Vehicle</th>
+                            <th>Slot</th>
+                            <th>From</th>
+                            <th>Until</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for item in my_bookings %}
+                        <tr>
+
+                            <td>
+                                {{ item.vehicle.vehicle_number }}
+                            </td>
+
+                            <td>
+                                {{ item.slot.slot_number }}
+                            </td>
+
+                            <td>
+                                {{ item.booking.start_time.strftime('%d %b, %I:%M %p') }}
+                            </td>
+
+                            <td>
+                                {{ item.end.strftime('%d %b, %I:%M %p') }}
+                            </td>
+
+                            <td>
+
+                                {% if item.label == 'Upcoming' %}
+
+                                    <span class="badge bg-primary">
+                                        Upcoming
+                                    </span>
+
+                                {% elif item.label == 'Ongoing' %}
+
+                                    <span class="badge bg-success">
+                                        Ongoing
+                                    </span>
+
+                                {% elif item.label == 'Finished' %}
+
+                                    <span class="badge bg-secondary">
+                                        Finished
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="badge bg-danger">
+                                        Cancelled
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+
+                                {% if item.label == 'Upcoming' %}
+
+                                    <form method="post"
+                                          action="{{ url_for('cancel_reservation', booking_id=item.booking.id) }}"
+                                          onsubmit="return confirm('Cancel this reservation?');">
+
+                                        <button type="submit"
+                                                class="btn btn-sm btn-outline-danger">
+                                            <i class="fa-solid fa-xmark"></i>
+                                            Cancel
+                                        </button>
+
+                                    </form>
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+            </div>
+
+            <a href="{{ url_for('reservations') }}" class="small">
+                View all reservations
+            </a>
+
         {% else %}
-        <p class="text-muted mb-2">You have no reservations yet.</p>
-        <a href="{{ url_for('new_reservation') }}" class="btn btn-sm btn-primary">Reserve a slot</a>
+
+            <p class="text-muted mb-2">
+                You have no reservations yet.
+            </p>
+
+            <a href="{{ url_for('new_reservation') }}"
+               class="btn btn-sm btn-primary">
+                <i class="fa-solid fa-calendar-plus"></i>
+                Reserve a slot
+            </a>
+
         {% endif %}
+
     </div>
 </div>
 
+<!-- Quick Actions -->
 <h5 class="mb-3">Quick actions</h5>
+
 <div class="row g-3 mb-4">
+
+    <!-- Park a Vehicle -->
     <div class="col-md-4">
-        <a href="{{ url_for('vehicle_entry') }}" class="action-card lift">
-            <span class="stat-icon stat-icon-blue"><svg class="icon" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
-            <span><strong>Park a vehicle</strong><small>Choose a vehicle and a slot</small></span>
+
+        <a href="{{ url_for('vehicle_entry') }}"
+           class="action-card lift">
+
+            <span class="stat-icon stat-icon-blue">
+                <i class="fa-solid fa-right-to-bracket"></i>
+            </span>
+
+            <span>
+                <strong>Park a vehicle</strong>
+                <small>Choose a vehicle and a slot</small>
+            </span>
+
         </a>
+
     </div>
+
+    <!-- Exit and Pay -->
     <div class="col-md-4">
-        <a href="{{ url_for('vehicle_exit') }}" class="action-card lift">
-            <span class="stat-icon stat-icon-orange"><svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
-            <span><strong>Exit and pay</strong><small>Check out a parked vehicle</small></span>
+
+        <a href="{{ url_for('vehicle_exit') }}"
+           class="action-card lift">
+
+            <span class="stat-icon stat-icon-orange">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </span>
+
+            <span>
+                <strong>Exit and pay</strong>
+                <small>Check out a parked vehicle</small>
+            </span>
+
         </a>
+
     </div>
+
+    <!-- Parking Slots -->
     <div class="col-md-4">
-        <a href="{{ url_for('slots') }}" class="action-card lift">
-            <span class="stat-icon stat-icon-green"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
-            <span><strong>Parking slots</strong><small>See which slots are free</small></span>
+
+        <a href="{{ url_for('slots') }}"
+           class="action-card lift">
+
+            <span class="stat-icon stat-icon-green">
+                <i class="fa-solid fa-table-cells-large"></i>
+            </span>
+
+            <span>
+                <strong>Parking slots</strong>
+                <small>See which slots are free</small>
+            </span>
+
         </a>
+
     </div>
+
 </div>
 
+<!-- Bottom Buttons -->
 <div class="d-flex gap-2">
-    <a href="{{ url_for('search') }}" class="btn btn-primary">Search</a>
-    <a href="{{ url_for('vehicles') }}" class="btn btn-outline-primary">My Vehicles</a>
+
+    <a href="{{ url_for('search') }}"
+       class="btn btn-primary">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        Search
+    </a>
+
+    <a href="{{ url_for('vehicles') }}"
+       class="btn btn-outline-primary">
+        <i class="fa-solid fa-car"></i>
+        My Vehicles
+    </a>
+
 </div>
+
 {% endblock %}

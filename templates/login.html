@@ -3,13 +3,15 @@
 {% block title %}Login{% endblock %}
 
 {% block content %}
-<div class="mx-auto form-card" style="max-width: 450px; border-top: 4px solid var(--royal);">
+<div class="mx-auto form-card" style="max-width: 420px; border-top: 4px solid var(--royal);">
     <div class="text-center mb-4">
-        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Smart Parking logo"
-             height="56" class="mb-3"
+        <img src="{{ url_for('static', filename='images/logo.png') }}"
+             alt="Smart Parking logo"
+             height="60"
+             class="mb-3"
              onerror="this.outerHTML='<div class=\'brand-mark brand-mark-lg mx-auto mb-3\'>P</div>'">
         <h3 class="mb-1">Welcome back</h3>
-        <p class="text-muted mb-0">Log in to manage your parking.</p>
+        <p class="text-muted mb-0">Sign in to manage your parking</p>
     </div>
 
     <form method="POST">
@@ -24,9 +26,14 @@
             <label class="form-label">Password</label>
             <input type="password" name="password" class="form-control" required>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Login</button>
+        <button type="submit" class="btn btn-primary w-100 py-2">
+            <i class="bi bi-box-arrow-in-right"></i> Login
+        </button>
     </form>
-    <p class="mt-3 mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+    <p class="mt-4 mb-0 text-center text-muted">
+        Don't have an account?
+        <a href="{{ url_for('register') }}" class="fw-semibold">Register here</a>
+    </p>
 </div>
 {% endblock %}
 

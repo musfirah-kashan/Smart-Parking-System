@@ -6,14 +6,15 @@
 {% set type_colors = {'normal': 'secondary', 'bike': 'info', 'handicapped': 'primary', 'ev': 'success', 'vip': 'warning', 'emergency': 'danger'} %}
 {% set type_labels = {'normal': 'Normal', 'bike': 'Bike', 'handicapped': 'Disabled', 'ev': 'EV', 'vip': 'VIP', 'emergency': 'Emergency'} %}
 
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+<div class="page-header">
   <div>
     <h2 class="mb-1">Parking Slots</h2>
     <p class="text-muted mb-0">Every slot and its current status.</p>
   </div>
-
   {% if current_user.role == "admin" %}
-    <a href="{{ url_for('add_slot') }}" class="btn btn-primary">+ Add Slot</a>
+    <a href="{{ url_for('add_slot') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Add Slot
+    </a>
   {% endif %}
 </div>
 

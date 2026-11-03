@@ -3,63 +3,216 @@
 
 {% block title %}Home | Smart Parking{% endblock %}
 
+{% block main_class %}{% if not current_user.is_authenticated %}container-fluid px-0 pt-2 pb-5{% else %}container py-4 py-md-5{% endif %}{% endblock %}
+
 {% block content %}
 
-<section class="hero text-center">
-    <h1>Smart Parking System</h1>
+{% if current_user.is_authenticated %}
+{# Logged-in users see a clean dashboard-style overview matching the app theme #}
 
-    <p class="lead mt-3">
-        Find and manage parking spaces efficiently.
-    </p>
+<div class="page-header mb-4">
+    <div>
+        <h2 class="mb-1">Welcome, {{ current_user.name }}!</h2>
+        <p class="text-muted mb-0">Here is a quick look at your parking activity.</p>
+    </div>
+</div>
 
-    <p>
-        Our system will help users find suitable parking slots
-        and help administrators manage parking operations.
-    </p>
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-bell"></i> Notifications
+        </h5>
+        <p class="text-muted mb-0">You're all caught up. No new notifications.</p>
+    </div>
+</div>
 
-    <div class="d-flex justify-content-center flex-wrap gap-2 mt-4">
-        {% if current_user.is_authenticated %}
-            <a href="{{ url_for('dashboard') }}" class="btn btn-parking">Go to Dashboard</a>
-        {% else %}
-            <a href="{{ url_for('login') }}" class="btn btn-parking">Login</a>
-            <a href="{{ url_for('register') }}" class="btn btn-hero-outline">Create Account</a>
-        {% endif %}
-        <a href="#features" class="btn btn-hero-outline">Explore Features</a>
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card lift">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-blue">
+                    <i class="bi bi-car-front"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-1">MY VEHICLES</h6>
+                    <h2 class="mb-0">—</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card lift">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-green">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-1">AVAILABLE SLOTS</h6>
+                    <h2 class="mb-0">—</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card lift">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-orange">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-1">WAITING LIST</h6>
+                    <h2 class="mb-0">—</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="mb-3">Current parking</h5>
+        <p class="text-muted mb-3">None of your vehicles is parked right now.</p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+            <i class="bi bi-speedometer2 me-1"></i> Go to Dashboard
+        </a>
+        <a href="{{ url_for('vehicle_entry') }}" class="btn btn-outline-primary ms-2">
+            Park a vehicle
+        </a>
+    </div>
+</div>
+
+{% else %}
+{# Public landing page – modern hero matching the provided design #}
+<section class="hero-modern">
+    <div class="hero-bg-shapes"></div>
+    <div class="hero-overlay"></div>   <!-- naya overlay (text readable rakhne ke liye) -->
+
+    <div class="container position-relative">
+        <div class="row align-items-center g-4 g-lg-5">
+            <!-- Left content -->
+            <div class="col-lg-6">
+                
+                <h1 class="hero-title">
+                    Park Smarter with<br>
+                    <span class="text-accent">Intelligent Allocation</span>
+                </h1>
+                <div class="hero-badge">
+                    Smarter Spaces, Seamless Parking.
+                </div>
+
+                <p class="hero-lead">
+                    Find available slots in seconds, get the best spot
+                    automatically, and manage your entire parking
+                    journey in one clean dashboard.
+                </p>
+
+                <div class="hero-actions">
+                    <a href="{{ url_for('login') }}" class="btn btn-hero-primary">
+                        <i class="bi bi-car-front-fill"></i>
+                        Go to Dashboard
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+                    <a href="#features" class="btn btn-hero-outline">
+                        <i class="bi bi-grid-3x3-gap"></i>
+                        Explore Features
+                    </a>
+                </div>
+
+                <div class="hero-features">
+                    <div class="hero-feature">
+                        <i class="bi bi-clock"></i>
+                        <span>Real-Time Availability</span>
+                    </div>
+                    <div class="hero-feature">
+                        <i class="bi bi-cpu"></i>
+                        <span>AI-Powered Allocation</span>
+                    </div>
+                    <div class="hero-feature">
+                        <i class="bi bi-shield-check"></i>
+                        <span>Secure &amp; Reliable</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right visual -->
+            <div class="col-lg-6">
+                <div class="hero-visual">
+                    <img src="{{ url_for('static', filename='images/hero-right.png') }}"
+                         alt="Smart Parking garage entrance"
+                         class="hero-img"
+                         onerror="this.style.display='none'">
+                    <div class="available-slots-card">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="status-dot"></span>
+                            <span class="slots-label">Available Slots</span>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="slots-count">12</span>
+                            <i class="bi bi-car-front-fill slots-icon"></i>
+                        </div>
+                        <div class="slots-chart">
+                            <svg viewBox="0 0 100 24" preserveAspectRatio="none">
+                                <path d="M0,18 Q15,16 25,14 T50,10 T75,8 T100,4"
+                                      fill="none" stroke="#F97316" stroke-width="2.5"
+                                      stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 
-<section id="features" class="row g-4 mt-5">
-
-    <div class="col-md-4">
-        <div class="feature-card lift">
-            <div class="feature-icon">
-                <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+<section id="features" class="container mt-5">
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="feature-card lift orange-glow">
+                <div class="feature-icon">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </div>
+                <h4>Parking Slots</h4>
+                <p>View real-time availability of parking spaces and their status at a glance.</p>
             </div>
-            <h4>Parking Slots</h4>
-            <p>View available and occupied parking spaces.</p>
+        </div>
+
+        <div class="col-md-4">
+            <div class="feature-card lift orange-glow">
+                <div class="feature-icon">
+                    <i class="bi bi-cpu"></i>
+                </div>
+                <h4>Smart Allocation</h4>
+                <p>Uses Min-Heap and Priority Queue to assign the best available slot for your vehicle.</p>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="feature-card lift orange-glow">
+                <div class="feature-icon">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+                <h4>Parking History</h4>
+                <p>Keep a clear record of every parking session, duration, and fee paid.</p>
+            </div>
         </div>
     </div>
-
-    <div class="col-md-4">
-        <div class="feature-card lift">
-            <div class="feature-icon">
-                <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <h4>Smart Allocation</h4>
-            <p>Use data structures to help select a suitable slot.</p>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="feature-card lift">
-            <div class="feature-icon">
-                <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-            </div>
-            <h4>Parking History</h4>
-            <p>Keep track of parking records and fees.</p>
-        </div>
-    </div>
-
 </section>
+{% endif %}
+
+<style>
+    .orange-glow {
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+
+    /* Normal: Grey glow */
+    box-shadow: 0 0 12px rgba(128, 128, 128, 0.25),
+                0 0 25px rgba(128, 128, 128, 0.12);
+}
+
+.orange-glow:hover {
+    /* Hover: Half blue and half orange glow */
+    box-shadow: -10px 0 20px rgba(59, 130, 246, 0.5),
+                 10px 0 20px rgba(249, 115, 22, 0.5);
+}
+</style>
 
 {% endblock %}
