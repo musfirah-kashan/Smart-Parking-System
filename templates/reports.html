@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Revenue Reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Revenue Reports</h2>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('reports.export_csv', kind='summary', period=period, date_from=date_from, date_to=date_to) }}">
+            <i class="bi bi-download"></i> Export CSV
+        </a>
+        <a class="btn btn-outline-primary" href="{{ url_for('reports.payments_list') }}">
+            <i class="bi bi-receipt"></i> All Payments
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="period">Period</label>
+                <select name="period" id="period" class="form-select">
+                    {% for p in ["daily", "weekly", "monthly"] %}
+                    <option value="{{ p }}" {{ "selected" if p == period }}>{{ p|capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="date_from">From</label>
+                <input type="date" name="date_from" id="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="date_to">To</label>
+                <input type="date" name="date_to" id="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Apply
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary stats -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-green"><i class="bi bi-cash-coin"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Paid</h6>
+                    <h2>Rs.{{ "%.0f"|format(total_paid) }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-orange"><i class="bi bi-hourglass-split"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Pending</h6>
+                    <h2>Rs.{{ "%.0f"|format(total_pending) }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-blue"><i class="bi bi-receipt"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Payments</h6>
+                    <h2>{{ count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Period table -->
+<h5 class="mb-3">{{ period|capitalize }} revenue</h5>
+<table class="table table-hover table-card mb-4">
+    <thead>
+        <tr>
+            <th>{{ period|capitalize }}</th>
+            <th>Paid (Rs)</th>
+            <th>Pending (Rs)</th>
+            <th>Payments</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, b in periods %}
+        <tr>
+            <td class="fw-medium">{{ key }}</td>
+            <td class="text-success fw-semibold">{{ "%.0f"|format(b.paid) }}</td>
+            <td class="text-warning fw-semibold">{{ "%.0f"|format(b.pending) }}</td>
+            <td>{{ b.count }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="4">
+                <div class="empty-state py-4">
+                    <i class="bi bi-inbox"></i>No payments in this range.
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Method table -->
+<h5 class="mb-3">By payment method <small class="text-muted fw-normal">(paid only)</small></h5>
+<table class="table table-hover table-card">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Amount (Rs)</th>
+            <th>Payments</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for name, b in by_method %}
+        <tr>
+            <td class="fw-medium">{{ name }}</td>
+            <td class="fw-semibold">{{ "%.0f"|format(b.amount) }}</td>
+            <td>{{ b.count }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="3">
+                <div class="empty-state py-4">
+                    <i class="bi bi-credit-card"></i>No paid payments yet.
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

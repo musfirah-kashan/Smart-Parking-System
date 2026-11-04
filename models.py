@@ -61,6 +61,9 @@ class Payment(db.Model):
     )
     amount = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20), default="pending")
+    # Phase 11: when it was paid and with what (Cash / Card / JazzCash / Easypaisa)
+    paid_at = db.Column(db.DateTime)
+    method = db.Column(db.String(20))
 
 
 class WaitingEntry(db.Model):

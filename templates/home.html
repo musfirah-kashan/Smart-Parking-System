@@ -3,89 +3,14 @@
 
 {% block title %}Home | Smart Parking{% endblock %}
 
-{% block main_class %}{% if not current_user.is_authenticated %}container-fluid px-0 pt-2 pb-5{% else %}container py-4 py-md-5{% endif %}{% endblock %}
+{% block main_class %}container-fluid px-0 pt-2 pb-5{% endblock %}
 
 {% block content %}
 
-{% if current_user.is_authenticated %}
-{# Logged-in users see a clean dashboard-style overview matching the app theme #}
-
-<div class="page-header mb-4">
-    <div>
-        <h2 class="mb-1">Welcome, {{ current_user.name }}!</h2>
-        <p class="text-muted mb-0">Here is a quick look at your parking activity.</p>
-    </div>
-</div>
-
-<div class="card mb-4">
-    <div class="card-body">
-        <h5 class="mb-3 d-flex align-items-center gap-2">
-            <i class="bi bi-bell"></i> Notifications
-        </h5>
-        <p class="text-muted mb-0">You're all caught up. No new notifications.</p>
-    </div>
-</div>
-
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card stat-card lift">
-            <div class="card-body">
-                <div class="stat-icon stat-icon-blue">
-                    <i class="bi bi-car-front"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">MY VEHICLES</h6>
-                    <h2 class="mb-0">—</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card stat-card lift">
-            <div class="card-body">
-                <div class="stat-icon stat-icon-green">
-                    <i class="bi bi-grid-3x3-gap"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">AVAILABLE SLOTS</h6>
-                    <h2 class="mb-0">—</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card stat-card lift">
-            <div class="card-body">
-                <div class="stat-icon stat-icon-orange">
-                    <i class="bi bi-hourglass-split"></i>
-                </div>
-                <div>
-                    <h6 class="text-muted mb-1">WAITING LIST</h6>
-                    <h2 class="mb-0">—</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card mb-4">
-    <div class="card-body">
-        <h5 class="mb-3">Current parking</h5>
-        <p class="text-muted mb-3">None of your vehicles is parked right now.</p>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
-            <i class="bi bi-speedometer2 me-1"></i> Go to Dashboard
-        </a>
-        <a href="{{ url_for('vehicle_entry') }}" class="btn btn-outline-primary ms-2">
-            Park a vehicle
-        </a>
-    </div>
-</div>
-
-{% else %}
-{# Public landing page – modern hero matching the provided design #}
+{# Always show the public landing / marketing home page (for both guests and logged-in users) #}
 <section class="hero-modern">
     <div class="hero-bg-shapes"></div>
-    <div class="hero-overlay"></div>   <!-- naya overlay (text readable rakhne ke liye) -->
+    <div class="hero-overlay"></div>
 
     <div class="container position-relative">
         <div class="row align-items-center g-4 g-lg-5">
@@ -107,11 +32,19 @@
                 </p>
 
                 <div class="hero-actions">
+                    {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-hero-primary">
+                        <i class="bi bi-car-front-fill"></i>
+                        Go to Dashboard
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+                    {% else %}
                     <a href="{{ url_for('login') }}" class="btn btn-hero-primary">
                         <i class="bi bi-car-front-fill"></i>
                         Go to Dashboard
                         <i class="bi bi-arrow-right"></i>
                     </a>
+                    {% endif %}
                     <a href="#features" class="btn btn-hero-outline">
                         <i class="bi bi-grid-3x3-gap"></i>
                         Explore Features
@@ -144,7 +77,7 @@
                     <div class="available-slots-card">
                         <div class="d-flex align-items-center gap-2 mb-1">
                             <span class="status-dot"></span>
-                            <span class="slots-label">Available Slots</span>
+                            <span class="slots-label">Available slots</span>
                         </div>
                         <div class="d-flex align-items-center justify-content-between">
                             <span class="slots-count">12</span>
@@ -197,7 +130,6 @@
         </div>
     </div>
 </section>
-{% endif %}
 
 <style>
     .orange-glow {

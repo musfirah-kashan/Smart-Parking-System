@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Payments{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>
+        <i class="bi bi-credit-card-2-front me-2 text-primary"></i>
+        {% if current_user.role == 'admin' %}All Payments{% else %}My Payments{% endif %}
+    </h2>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('reports.export_csv', q=f.q, slot=f.slot, status=f.status, method=f.method, date_from=f.date_from, date_to=f.date_to) }}">
+            <i class="bi bi-download"></i> Export CSV
+        </a>
+        {% if current_user.role == 'admin' %}
+        <a class="btn btn-outline-primary" href="{{ url_for('reports.revenue_report') }}">
+            <i class="bi bi-graph-up-arrow"></i> Revenue Reports
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="q">Vehicle</label>
+                <input type="text" name="q" id="q" class="form-control" value="{{ f.q }}" placeholder="plate number">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="slot">Slot</label>
+                <input type="text" name="slot" id="slot" class="form-control" value="{{ f.slot }}" placeholder="e.g. A1">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="status">Status</label>
+                <select name="status" id="status" class="form-select">
+                    <option value="">All</option>
+                    {% for s in ["paid", "pending"] %}
+                    <option value="{{ s }}" {{ "selected" if f.status == s }}>{{ s|capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="method">Method</label>
+                <select name="method" id="method" class="form-select">
+                    <option value="">All</option>
+                    {% for m in methods %}
+                    <option value="{{ m }}" {{ "selected" if f.method == m }}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="date_from">From</label>
+                <input type="date" name="date_from" id="date_from" class="form-control" value="{{ f.date_from }}">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="date_to">To</label>
+                <input type="date" name="date_to" id="date_to" class="form-control" value="{{ f.date_to }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="sort">Sort</label>
+                <select name="sort" id="sort" class="form-select">
+                    {% for s in ["date", "amount", "vehicle", "status"] %}
+                    <option value="{{ s }}" {{ "selected" if sort_by == s }}>{{ s|capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="order">Order</label>
+                <select name="order" id="order" class="form-select">
+                    <option value="desc" {{ "selected" if order == "desc" }}>Newest / High first</option>
+                    <option value="asc" {{ "selected" if order == "asc" }}>Oldest / Low first</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
+                <a href="{{ url_for('reports.payments_list') }}" class="btn btn-outline-secondary" title="Reset">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Totals -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <span class="badge bg-success">Paid: Rs.{{ "%.0f"|format(total_paid) }}</span>
+    <span class="badge bg-warning">Pending: Rs.{{ "%.0f"|format(total_pending) }}</span>
+    <span class="badge bg-secondary">Showing: {{ rows|length }}</span>
+</div>
+
+<table class="table table-hover table-card">
+    <thead>
+        <tr>
+            <th>Vehicle</th>
+            <th>Slot</th>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Method</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td class="fw-medium">{{ r.vehicle.vehicle_number }}</td>
+            <td>{{ r.slot.slot_number if r.slot else "-" }}</td>
+            <td>{{ r.when.strftime("%d %b %Y, %I:%M %p") if r.when else "-" }}</td>
+            <td class="fw-semibold">Rs.{{ "%.0f"|format(r.amount) }}</td>
+            <td>{{ r.method or "-" }}</td>
+            <td>
+                {% if r.status == "paid" %}
+                <span class="badge bg-success">Paid</span>
+                {% else %}
+                <span class="badge bg-warning">{{ r.status|capitalize }}</span>
+                {% endif %}
+            </td>
+            <td class="text-end">
+                {% if r.status == "paid" %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('payment', record_id=r.record.id) }}">
+                        <i class="bi bi-receipt"></i> Receipt
+                    </a>
+                {% else %}
+                    {# Only normal users can pay. Admin just sees Pending status #}
+                    {% if current_user.role != 'admin' %}
+                        <a class="btn btn-sm btn-primary" href="{{ url_for('payment', record_id=r.record.id) }}">
+                            <i class="bi bi-wallet2"></i> Pay now
+                        </a>
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="7">
+                <div class="empty-state py-4">
+                    <i class="bi bi-inbox"></i> No payments match these filters.
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

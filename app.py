@@ -53,6 +53,12 @@ app.config["SECRET_KEY"] = "change-this-secret-key"
 
 db.init_app(app)
 
+# Phase 11 + 12 (reports.py, analytics.py)
+from reports import reports_bp
+from analytics import analytics_bp
+app.register_blueprint(reports_bp)
+app.register_blueprint(analytics_bp)
+
 # Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -73,6 +79,31 @@ def ensure_schema():
             conn.execute(text(
                 "ALTER TABLE vehicle ADD COLUMN priority VARCHAR(20) DEFAULT 'Normal'"
             ))
+
+    # Phase 11: payment.paid_at and payment.method
+    pay_cols = [c["name"] for c in inspect(db.engine).get_columns("payment")]
+    with db.engine.begin() as conn:
+        if "paid_at" not in pay_cols:
+            conn.execute(text("ALTER TABLE payment ADD COLUMN paid_at DATETIME"))
+        if "method" not in pay_cols:
+            conn.execute(text("ALTER TABLE payment ADD COLUMN method VARCHAR(20)"))
+
+    # Backfill old paid rows that were marked paid before Phase 11 fields existed.
+    # Use exit_time as paid_at; method defaults to "Cash" so reports/filters work.
+    with db.engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE payment
+            SET paid_at = (
+                SELECT exit_time FROM parking_record
+                WHERE parking_record.id = payment.record_id
+            )
+            WHERE status = 'paid' AND paid_at IS NULL
+        """))
+        conn.execute(text("""
+            UPDATE payment
+            SET method = 'Cash'
+            WHERE status = 'paid' AND (method IS NULL OR method = '')
+        """))
 
 
 # ---------------- DEFAULT ADMIN (fixed login) ----------------
@@ -233,6 +264,10 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    # Admin users see the full Admin Dashboard on the Dashboard page
+    if current_user.role == "admin":
+        return _render_admin_dashboard()
+
     now = datetime.now()
     my_vehicles = Vehicle.query.filter_by(user_id=current_user.id).all()
     my_vehicle_ids = [v.id for v in my_vehicles]
@@ -892,9 +927,9 @@ def checkout(record_id):
     return redirect(url_for("payment", record_id=record.id))
 
 
-# ---------------- PAYMENT (Member 4, demo page) ----------------
+# ---------------- PAYMENT (Phase 11: status + method + paid_at stored in DB) ----------------
 
-# Sirf dikhane ke liye, database mein save nahi hota.
+# Demo methods only (no real gateway). Values are saved on Payment.method.
 PAYMENT_METHODS = ["Cash", "Card", "JazzCash", "Easypaisa"]
 
 
@@ -949,6 +984,8 @@ def payment(record_id):
                 return redirect(url_for("payment", record_id=record.id))
 
             pay.status = "paid"
+            pay.paid_at = datetime.now()
+            pay.method = method
             db.session.commit()
             flash(
                 f"Payment of Rs.{pay.amount:.0f} received via {method} (demo).",
@@ -1416,9 +1453,8 @@ def route_finder():
 
 # ---------------- ADMIN DASHBOARD (Phase 8) ----------------
 
-@app.route("/admin/dashboard")
-@admin_required
-def admin_dashboard():
+def _render_admin_dashboard():
+    """Shared logic so both /dashboard (for admin) and /admin/dashboard show the same page."""
     now = datetime.now()
 
     # slot status counts
@@ -1484,6 +1520,13 @@ def admin_dashboard():
         overstay_count=overstay_count,
         recent=recent,
     )
+
+
+@app.route("/admin/dashboard")
+@admin_required
+def admin_dashboard():
+    # Same page as Dashboard for admins – keep URL for bookmarks / menu links
+    return _render_admin_dashboard()
 
 if __name__ == "__main__":
     app.run(debug=True)

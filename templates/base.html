@@ -29,11 +29,9 @@
     <nav class="navbar navbar-expand-lg glass-navbar sticky-top">
         <div class="container">
             <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('home') }}">
-                <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('home') }}">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Smart Parking"
-                        class="brand-logo" height="50">
-                    <span class="brand-text">Smart Parking</span>
-                </a>
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Smart Parking"
+                    class="brand-logo" height="50">
+                <span class="brand-text">Smart Parking</span>
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
@@ -52,7 +50,7 @@
 
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if ep == 'dashboard' }}" href="{{ url_for('dashboard') }}">
+                        <a class="nav-link {{ 'active' if ep in ['dashboard', 'admin_dashboard'] }}" href="{{ url_for('dashboard') }}">
                             <i class="bi bi-grid-3x3-gap"></i> Dashboard
                         </a>
                     </li>
@@ -96,7 +94,7 @@
 
                     <!-- My Account dropdown -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ 'active' if ep in ['vehicles','add_vehicle','edit_vehicle','reservations','new_reservation','history','profile'] }}"
+                        <a class="nav-link dropdown-toggle {{ 'active' if ep in ['vehicles','add_vehicle','edit_vehicle','reservations','new_reservation','history','profile'] or ep == 'reports.payments_list' }}"
                             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-person"></i> My Account
                         </a>
@@ -116,7 +114,13 @@
                             <li>
                                 <a class="dropdown-item {{ 'active' if ep == 'history' }}"
                                     href="{{ url_for('history') }}">
-                                    <i class="bi bi-clock-history me-2"></i>History
+                                    <i class="bi bi-clock-history me-2"></i>Parking History
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if ep == 'reports.payments_list' }}"
+                                    href="{{ url_for('reports.payments_list') }}">
+                                    <i class="bi bi-credit-card-2-front me-2"></i>Payments
                                 </a>
                             </li>
                             <li>
@@ -161,14 +165,32 @@
 
                     {% if current_user.role == "admin" %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ 'active' if ep in ['admin_dashboard','admin_users','admin_vehicles','dsa_lab'] }}"
+                        <a class="nav-link dropdown-toggle {{ 'active' if ep in ['admin_dashboard','admin_users','admin_vehicles','dsa_lab'] or (ep and ep.startswith(('reports.','analytics.'))) }}"
                             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-shield-lock"></i> Admin
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">
+                                <a class="dropdown-item {{ 'active' if ep in ['dashboard', 'admin_dashboard'] }}" href="{{ url_for('dashboard') }}">
                                     <i class="bi bi-bar-chart-line me-2"></i>Admin Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if ep == 'reports.revenue_report' }}"
+                                    href="{{ url_for('reports.revenue_report') }}">
+                                    <i class="bi bi-graph-up-arrow me-2"></i>Revenue Reports
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if ep == 'reports.payments_list' }}"
+                                    href="{{ url_for('reports.payments_list') }}">
+                                    <i class="bi bi-credit-card-2-front me-2"></i>Payments
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if ep == 'analytics.analytics' }}"
+                                    href="{{ url_for('analytics.analytics') }}">
+                                    <i class="bi bi-bar-chart-line me-2"></i>Analytics
                                 </a>
                             </li>
                             <li>

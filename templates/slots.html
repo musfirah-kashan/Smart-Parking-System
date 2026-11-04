@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Parking Slots{% endblock %}
+{% block title %}Parking slots{% endblock %}
 
 {% block content %}
 {% set type_colors = {'normal': 'secondary', 'bike': 'info', 'handicapped': 'primary', 'ev': 'success', 'vip': 'warning', 'emergency': 'danger'} %}
@@ -42,28 +42,34 @@
   <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
     <div class="slot-card slot-{{ s.status }} lift">
 
-      <div class="d-flex justify-content-between align-items-start gap-2">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
         <div class="slot-number">{{ s.slot_number }}</div>
         <span class="status-pill status-{{ s.status }}">{{ s.status }}</span>
       </div>
 
-      <div class="slot-meta">
-        <span class="badge bg-{{ type_colors.get(s.slot_type, 'secondary') }}">{{ type_labels.get(s.slot_type, s.slot_type) }}</span>
-        <span data-bs-toggle="tooltip" title="Distance from the gate">{{ s.distance }} m</span>
+      <div class="slot-meta mb-3">
+        <span class="badge bg-{{ type_colors.get(s.slot_type, 'secondary') }}">
+          {{ type_labels.get(s.slot_type, s.slot_type) }}
+        </span>
+        <span class="text-muted small" data-bs-toggle="tooltip" title="Distance from the gate">
+          {{ s.distance }} m
+        </span>
       </div>
 
       {% if current_user.role == "admin" %}
       <div class="slot-actions">
         <form method="post" action="{{ url_for('update_slot_status', slot_id=s.id) }}">
-          <select name="status" class="form-select form-select-sm" aria-label="Change status for {{ s.slot_number }}" onchange="this.form.submit()">
+          <select name="status" class="form-select form-select-sm mb-2"
+                  aria-label="Change status for {{ s.slot_number }}"
+                  onchange="this.form.submit()">
             {% for st in ["available", "occupied", "reserved", "maintenance"] %}
               <option value="{{ st }}" {% if s.status == st %}selected{% endif %}>{{ st }}</option>
             {% endfor %}
           </select>
         </form>
 
-        <div class="d-flex gap-2 mt-2">
-          <a href="{{ url_for('edit_slot', slot_id=s.id) }}" class="btn btn-sm btn-warning">Edit</a>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('edit_slot', slot_id=s.id) }}" class="btn btn-sm btn-warning flex-fill">Edit</a>
           <form method="post" action="{{ url_for('delete_slot', slot_id=s.id) }}"
                 style="display:inline"
                 onsubmit="return confirm('Delete slot {{ s.slot_number }}?');">

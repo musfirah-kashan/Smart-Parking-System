@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2><i class="bi bi-bar-chart-line me-2 text-primary"></i>Analytics</h2>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">
+            <i class="bi bi-speedometer2"></i> Admin Dashboard
+        </a>
+        <a class="btn btn-outline-primary" href="{{ url_for('reports.revenue_report') }}">
+            <i class="bi bi-graph-up-arrow"></i> Revenue Reports
+        </a>
+    </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-blue"><i class="bi bi-pie-chart"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Occupancy</h6>
+                    <h2 id="occ-pct">{{ occupancy }}%</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-green"><i class="bi bi-cash-coin"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Total Paid</h6>
+                    <h2>Rs.{{ "%.0f"|format(paid_total) }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-orange"><i class="bi bi-hourglass-split"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Waiting List</h6>
+                    <h2>{{ waiting }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card lift h-100">
+            <div class="card-body">
+                <div class="stat-icon stat-icon-cyan"><i class="bi bi-clock"></i></div>
+                <div>
+                    <h6 class="text-muted mb-1">Peak Hour</h6>
+                    <h2>{{ ("%d:00" % peak_hour) if peak_hour is not none else "-" }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts: fixed-height containers prevent Chart.js progressive shrink -->
+<style>
+  .chart-box {
+    position: relative;
+    width: 100%;
+    height: 260px;
+  }
+  .chart-box canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+</style>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-pie-chart me-2"></i>Slot occupancy</div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="occChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-graph-up me-2"></i>Revenue (last 14 days)</div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="revChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-clock-history me-2"></i>Peak hours (entries)</div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="hourChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-star me-2"></i>Popular slots</div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="popChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Live slots -->
+<div class="card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span><i class="bi bi-broadcast me-2"></i>Live slots</span>
+        <small id="updated" class="text-muted fw-normal"></small>
+    </div>
+    <div class="card-body">
+        <div class="d-flex flex-wrap gap-3 mb-3 small text-muted">
+            <span><span class="status-pill status-available">&nbsp;</span> Available</span>
+            <span><span class="status-pill status-occupied">&nbsp;</span> Occupied</span>
+            <span><span class="status-pill status-reserved">&nbsp;</span> Reserved</span>
+            <span><span class="status-pill">&nbsp;</span> Maintenance</span>
+        </div>
+        <div id="slot-grid" class="d-flex flex-wrap gap-2"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.color = "#64748B";
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+
+const STATUSES = {{ statuses|tojson }};
+const COLORS = {
+  available: "#059669",
+  occupied: "#DC2626",
+  reserved: "#D97706",
+  maintenance: "#64748B"
+};
+const counts = {{ counts|tojson }};
+
+const chartOpts = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,          // stops re-layout jank on refresh
+  plugins: {
+    legend: { position: "bottom" }
+  }
+};
+
+const occChart = new Chart(document.getElementById("occChart"), {
+  type: "doughnut",
+  data: {
+    labels: STATUSES,
+    datasets: [{
+      data: STATUSES.map(s => counts[s] || 0),
+      backgroundColor: STATUSES.map(s => COLORS[s])
+    }]
+  },
+  options: chartOpts
+});
+
+new Chart(document.getElementById("revChart"), {
+  type: "line",
+  data: {
+    labels: {{ rev_labels|tojson }},
+    datasets: [{
+      label: "Paid (Rs)",
+      data: {{ rev_values|tojson }},
+      borderColor: "#F97316",
+      backgroundColor: "rgba(249,115,22,0.12)",
+      tension: 0.3,
+      fill: true
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: { legend: { display: true, position: "bottom" } },
+    scales: { y: { beginAtZero: true } }
+  }
+});
+
+new Chart(document.getElementById("hourChart"), {
+  type: "bar",
+  data: {
+    labels: Array.from({length: 24}, (_, h) => h + ":00"),
+    datasets: [{
+      label: "Entries",
+      data: {{ per_hour|tojson }},
+      backgroundColor: "#2563EB",
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
+
+new Chart(document.getElementById("popChart"), {
+  type: "bar",
+  data: {
+    labels: {{ popular|map(attribute="slot")|list|tojson }},
+    datasets: [{
+      label: "Times used",
+      data: {{ popular|map(attribute="count")|list|tojson }},
+      backgroundColor: "#0891B2",
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    indexAxis: "y",
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
+
+function drawGrid(slots) {
+  const grid = document.getElementById("slot-grid");
+  grid.textContent = "";
+  slots.forEach(s => {
+    const box = document.createElement("div");
+    box.textContent = s.slot_number;
+    box.title = s.slot_type + " - " + s.status;
+    box.className = "lift";
+    box.style.cssText =
+      "padding:8px 14px;border-radius:10px;color:#fff;font-weight:600;font-size:0.9rem;background:" +
+      (COLORS[s.status] || "#64748B");
+    grid.appendChild(box);
+  });
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("{{ url_for('analytics.api_slots') }}");
+    if (!res.ok) return;
+    const d = await res.json();
+    drawGrid(d.slots);
+    // update only data – no full resize/recreate (this was causing shrink)
+    occChart.data.datasets[0].data = STATUSES.map(s => d.counts[s] || 0);
+    occChart.update("none");
+    document.getElementById("occ-pct").textContent = d.occupancy + "%";
+    document.getElementById("updated").textContent = "(updated " + d.updated + ")";
+  } catch (e) {
+    /* network hiccup, try again next tick */
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+{% endblock %}

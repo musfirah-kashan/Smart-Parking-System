@@ -473,6 +473,7 @@ a:focus-visible,
 }
 
 .available-slots-card {
+    
     position: absolute;
     top: 1.25rem;
     right: 1.25rem;
@@ -1226,4 +1227,61 @@ main {
         position: static;
         margin-bottom: 0.5rem;
     }
+}
+
+/* ---------- 20. Parking Slot Cards ---------- */
+.slot-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    transition: all 0.22s ease;
+    height: 100%;
+}
+
+.slot-card:hover {
+    border-color: #CBD5E1;
+    box-shadow: 0 10px 28px -6px rgba(15, 23, 42, 0.13);
+    transform: translateY(-3px);
+}
+
+/* Left accent border based on status */
+.slot-card.slot-available {
+    border-left: 4px solid #059669;
+}
+
+.slot-card.slot-occupied {
+    border-left: 4px solid #DC2626;
+}
+
+.slot-card.slot-reserved {
+    border-left: 4px solid #D97706;
+}
+
+.slot-card.slot-maintenance {
+    border-left: 4px solid #64748B;
+}
+
+/* Slot number styling */
+.slot-number {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -0.03em;
+}
+
+/* Meta row (type + distance) */
+.slot-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+/* Admin actions spacing */
+.slot-actions {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
 }
