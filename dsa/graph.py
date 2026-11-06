@@ -12,7 +12,7 @@ from .min_heap import MinHeap
 
 class Graph:
     def __init__(self):
-        self.adj = {}          # node -> list of (neighbour, distance)
+        self.adj = {}          
 
     def add_edge(self, a, b, distance):
         self.adj.setdefault(a, []).append((b, distance))

@@ -15,10 +15,14 @@ from datetime import timedelta
 from models import ParkingSlot, Booking
 from .hash_table import HashTable
 from .min_heap import MinHeap
-from .parking_engine import pick_best_slot
+from .parking_engine import pick_best_slot, EARLY_ARRIVAL_GRACE
 
 OVERSTAY_RATE_PER_HOUR = 100                 # Rs. per extra hour
-EARLY_ARRIVAL_GRACE = timedelta(minutes=15)  # arriving a little early is fine
+# Bookings that still block their time window: waiting (active) or checked in (used).
+# 'completed' (vehicle already left) and 'cancelled' free the slot again.
+BLOCKING_STATUSES = ("active", "used")
+# Bookings that can still be compared with a parking record for overstay.
+OVERSTAY_STATUSES = ("active", "used", "completed")
 
 
 def booking_end(booking):
@@ -33,7 +37,7 @@ def free_slots_for(start, hours):
     """Every slot with no overlapping active booking (maintenance slots skipped)."""
     end = start + timedelta(hours=hours)
     busy = set()
-    for b in Booking.query.filter_by(status="active").all():
+    for b in Booking.query.filter(Booking.status.in_(BLOCKING_STATUSES)).all():
         if overlaps(start, end, b.start_time, booking_end(b)):
             busy.add(b.slot_id)
     return [
@@ -45,7 +49,9 @@ def free_slots_for(start, hours):
 def vehicle_is_busy(vehicle_id, start, hours):
     """True if this vehicle already has a booking overlapping the window."""
     end = start + timedelta(hours=hours)
-    for b in Booking.query.filter_by(vehicle_id=vehicle_id, status="active").all():
+    for b in Booking.query.filter(
+        Booking.vehicle_id == vehicle_id, Booking.status.in_(BLOCKING_STATUSES)
+    ).all():
         if overlaps(start, end, b.start_time, booking_end(b)):
             return True
     return False
@@ -67,7 +73,7 @@ def reserve_slot(vehicle, start, hours, trace=None):
 def bookings_by_vehicle():
     """Hash table: vehicle id -> list of its active bookings (O(1) lookup)."""
     table = HashTable()
-    for b in Booking.query.filter_by(status="active").all():
+    for b in Booking.query.filter(Booking.status.in_(OVERSTAY_STATUSES)).all():
         items = table.get(b.vehicle_id)
         if items is None:
             items = []

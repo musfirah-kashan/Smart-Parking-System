@@ -46,7 +46,6 @@ def analytics():
     slots, counts = slot_snapshot()
     total = len(slots)
 
-    # popular slots: hash map count + heap top-5, peak hours: 24 buckets
     per_slot = defaultdict(int)
     per_hour = [0] * 24
     for rec in ParkingRecord.query.all():

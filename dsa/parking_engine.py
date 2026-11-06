@@ -11,11 +11,11 @@ rebuilt from it when needed, so a server restart never loses anything.
 import re
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import event
 
-from models import db, User, Vehicle, ParkingSlot, ParkingRecord, WaitingEntry
+from models import db, User, Vehicle, ParkingSlot, ParkingRecord, WaitingEntry, Booking
 from . import HashTable, MinHeap, FifoQueue, PriorityQueue
 
 # ---------------------------------------------------------------- constants
@@ -28,6 +28,11 @@ PRIORITY_LEVELS = list(PRIORITY_RANK)
 ADMIN_ONLY_PRIORITIES = ("Emergency", "VIP")
 
 SLOT_TYPES = ["normal", "bike", "handicapped", "ev", "vip", "emergency"]
+VEHICLE_TYPES = ["Car", "Bike", "Van", "Truck"]
+
+# Reservations: a booked slot is held for its vehicle from (start - grace) until
+# the booking ends. Nobody else can be parked there during that window.
+EARLY_ARRIVAL_GRACE = timedelta(minutes=15)   # arriving a little early is fine
 
 # allocation score = distance (m) + TYPE_PENALTY * (rank of the slot type in the vehicle's preference list). Lower score wins.
 TYPE_PENALTY = 40
@@ -197,8 +202,9 @@ for _model in (User, Vehicle, ParkingSlot, ParkingRecord):
 
 # ---------------------------------------------- Phase 6: min heap + slots
 
-def build_slot_heaps():
+def build_slot_heaps(exclude=()):
     """One min-heap per slot type, holding only AVAILABLE slots.
+    Slots in `exclude` (held by a reservation) are left out.
 
     key   = (distance, slot_number)   -> nearest slot is always on top
     value = slot id
@@ -206,6 +212,8 @@ def build_slot_heaps():
     """
     groups = {}
     for s in ParkingSlot.query.filter_by(status="available").all():
+        if s.id in exclude:
+            continue
         groups.setdefault((s.slot_type or "normal").lower(), []).append(
             ((s.distance or 0.0, s.slot_number), s.id)
         )
@@ -240,7 +248,40 @@ def pick_best_slot(vehicle, heaps, trace=None):
     (distance, number), slot_id = heaps[t].pop_min()      # extractMin()
     trace.append(f"lowest score wins: '{t}' slot {number} (score {score:g})")
     return db.session.get(ParkingSlot, slot_id)
-    trace.append("no suitable slot is free")
+
+
+# ---------------------------------------------- reservations vs. walk-ins
+
+def active_booking_for(vehicle_id, now=None):
+    """The vehicle's ACTIVE booking whose window is open right now
+    (from `start - grace` until the booking ends), or None."""
+    now = now or datetime.now()
+    for b in Booking.query.filter_by(vehicle_id=vehicle_id, status="active").all():
+        end = b.start_time + timedelta(hours=b.duration_hours or 1)
+        if b.start_time - EARLY_ARRIVAL_GRACE <= now < end:
+            return b
+    return None
+
+
+def held_slots(now=None):
+    """{slot_id: vehicle_id} for every slot held by a reservation right now."""
+    now = now or datetime.now()
+    held = {}
+    for b in Booking.query.filter_by(status="active").all():
+        end = b.start_time + timedelta(hours=b.duration_hours or 1)
+        if b.start_time - EARLY_ARRIVAL_GRACE <= now < end:
+            held[b.slot_id] = b.vehicle_id
+    return held
+
+
+def reserved_slot_for(vehicle, now=None):
+    """The vehicle's own reserved slot, if its window is open and the slot is free."""
+    booking = active_booking_for(vehicle.id, now)
+    if booking is None:
+        return None
+    slot = db.session.get(ParkingSlot, booking.slot_id)
+    if slot is not None and slot.status == "available":
+        return slot
     return None
 
 
@@ -308,9 +349,13 @@ def cancel_waiting(entry):
 
 
 def _park(vehicle, slot, when=None):
+    when = when or datetime.now()
     record = ParkingRecord(vehicle_id=vehicle.id, slot_id=slot.id,
-                           entry_time=when or datetime.now())
+                           entry_time=when)
     slot.status = "occupied"
+    booking = active_booking_for(vehicle.id, when)
+    if booking is not None:
+        booking.status = "used"          # the reserved vehicle has checked in
     db.session.add(record)
     return record
 
@@ -329,7 +374,7 @@ def assign_waiting_vehicles():
     if pq.is_empty():
         return []
 
-    heaps = build_slot_heaps()
+    heaps = build_slot_heaps(exclude=set(held_slots()))   # reserved slots stay free
     parked_ids = {r.vehicle_id for r in
                   ParkingRecord.query.filter(ParkingRecord.exit_time.is_(None)).all()}
     deferred = FifoQueue()
@@ -341,7 +386,9 @@ def assign_waiting_vehicles():
         if vehicle is None or vehicle.id in parked_ids:
             entry.status = "cancelled"
             continue
-        slot = pick_best_slot(vehicle, heaps)
+        slot = reserved_slot_for(vehicle)     # its own reservation comes first
+        if slot is None:
+            slot = pick_best_slot(vehicle, heaps)
         if slot is None:
             deferred.enqueue(entry)         # still waiting
             continue
@@ -364,8 +411,12 @@ def smart_park(vehicle):
     Returns dict: status ('parked' | 'queued'), slot, entry, position, trace.
     """
     trace = ["Vehicle arrives: " + vehicle.vehicle_number]
-    heaps = build_slot_heaps()
-    slot = pick_best_slot(vehicle, heaps, trace)
+    slot = reserved_slot_for(vehicle)
+    if slot is not None:
+        trace.append(f"active reservation found -> reserved slot {slot.slot_number}")
+    else:
+        heaps = build_slot_heaps(exclude=set(held_slots()))   # reserved slots stay free
+        slot = pick_best_slot(vehicle, heaps, trace)
 
     if slot is not None:
         _park(vehicle, slot)

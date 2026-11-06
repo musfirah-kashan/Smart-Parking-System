@@ -26,14 +26,20 @@ from dsa.parking_engine import (
     PRIORITY_RANK,
     SLOT_PREFERENCE,
     SLOT_TYPES,
+    VEHICLE_TYPES,
     assign_waiting_vehicles,
     build_slot_heaps,
     build_waiting_fifo,
     build_waiting_pq,
     cancel_waiting,
+    held_slots,
+    normalize_plate,
     queue_position,
     search_index,
+    EARLY_ARRIVAL_GRACE,
+    _park,
     smart_park,
+    suitable_slot_types,
     waiting_vehicle_ids,
 )
 
@@ -53,13 +59,11 @@ app.config["SECRET_KEY"] = "change-this-secret-key"
 
 db.init_app(app)
 
-# Phase 11 + 12 (reports.py, analytics.py)
 from reports import reports_bp
 from analytics import analytics_bp
 app.register_blueprint(reports_bp)
 app.register_blueprint(analytics_bp)
 
-# Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
@@ -80,7 +84,6 @@ def ensure_schema():
                 "ALTER TABLE vehicle ADD COLUMN priority VARCHAR(20) DEFAULT 'Normal'"
             ))
 
-    # Phase 11: payment.paid_at and payment.method
     pay_cols = [c["name"] for c in inspect(db.engine).get_columns("payment")]
     with db.engine.begin() as conn:
         if "paid_at" not in pay_cols:
@@ -88,8 +91,7 @@ def ensure_schema():
         if "method" not in pay_cols:
             conn.execute(text("ALTER TABLE payment ADD COLUMN method VARCHAR(20)"))
 
-    # Backfill old paid rows that were marked paid before Phase 11 fields existed.
-    # Use exit_time as paid_at; method defaults to "Cash" so reports/filters work.
+    
     with db.engine.begin() as conn:
         conn.execute(text("""
             UPDATE payment
@@ -106,7 +108,7 @@ def ensure_schema():
         """))
 
 
-# ---------------- DEFAULT ADMIN (fixed login) ----------------
+
 DEFAULT_ADMIN_NAME = "Admin"
 DEFAULT_ADMIN_EMAIL = "admin@gmail.com"
 DEFAULT_ADMIN_PASSWORD = "admin123"
@@ -128,12 +130,12 @@ def ensure_default_admin():
 
 
 with app.app_context():
-    db.create_all()      # also creates the new waiting_entry table
+    db.create_all()      
     ensure_schema()
     ensure_default_admin()
 
 
-# ---------------- VALIDATION HELPERS ----------------
+
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$")
 PHONE_RE = re.compile(r"^\+?\d{10,13}$")
@@ -169,6 +171,16 @@ def check_priority(new_priority, current=None):
     return new_priority, None
 
 
+def plate_taken(number, exclude_id=None):
+    """True if another vehicle already has this plate.
+    'ABC-123', 'abc 123' and 'ABC123' are the SAME plate."""
+    key = normalize_plate(number)
+    for v in Vehicle.query.all():
+        if v.id != exclude_id and normalize_plate(v.vehicle_number) == key:
+            return True
+    return False
+
+
 def run_waiting_assignment():
     """A slot just became free: serve the waiting list (priority order)."""
     for vehicle, slot in assign_waiting_vehicles():
@@ -184,7 +196,7 @@ def home():
     return render_template("home.html")
 
 
-# ---------------- AUTH ----------------
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -259,12 +271,9 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ---------------- DASHBOARD ----------------
-
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    # Admin users see the full Admin Dashboard on the Dashboard page
     if current_user.role == "admin":
         return _render_admin_dashboard()
 
@@ -276,7 +285,7 @@ def dashboard():
     available_slots = ParkingSlot.query.filter_by(status="available").count()
     waiting_count = WaitingEntry.query.filter_by(status="waiting").count()
 
-    # ---- Current parking ----
+
     current_parking = []
     for record in ParkingRecord.query.filter(
         ParkingRecord.exit_time.is_(None),
@@ -293,7 +302,7 @@ def dashboard():
             }
         )
 
-    # ---- Reservation status----
+ 
     my_bookings = []
     for b in Booking.query.filter_by(user_id=current_user.id).order_by(
         Booking.start_time.desc()
@@ -317,7 +326,7 @@ def dashboard():
             }
         )
 
-    # ---- Notifications ----
+
     notifications = []
 
     for row in current_parking:
@@ -339,8 +348,9 @@ def dashboard():
             )
 
     for row in current_parking:
-        for b in Booking.query.filter_by(
-            vehicle_id=row["vehicle"].id, status="active"
+        for b in Booking.query.filter(
+            Booking.vehicle_id == row["vehicle"].id,
+            Booking.status.in_(("active", "used")),
         ).all():
             if b.start_time <= now > booking_end(b):
                 notifications.append(
@@ -367,7 +377,6 @@ def dashboard():
         notifications=notifications,
     )
 
-# ---------------- PROFILE ----------------
 
 @app.route("/profile", methods=["GET", "POST"])
 @login_required
@@ -403,7 +412,6 @@ def profile():
         flash("Profile updated successfully!", "success")
         return redirect(url_for("profile"))
 
-    # Payment history: sirf apni gaadiyon ki payments, naye exit pehle
     history_query = (
         Payment.query.join(ParkingRecord, Payment.record_id == ParkingRecord.id)
         .join(Vehicle, ParkingRecord.vehicle_id == Vehicle.id)
@@ -437,7 +445,7 @@ def profile():
     )
 
 
-# ---------------- VEHICLES ----------------
+
 
 @app.route("/vehicles")
 @login_required
@@ -454,15 +462,19 @@ def add_vehicle():
         vtype = request.form["vehicle_type"].strip()
         priority, error = check_priority(request.form.get("priority"))
 
-        if not number or not vtype:
+        if not normalize_plate(number) or not vtype:
             flash("Please fill all fields.", "danger")
+            return redirect(url_for("add_vehicle"))
+
+        if vtype not in VEHICLE_TYPES:
+            flash("Invalid vehicle type.", "danger")
             return redirect(url_for("add_vehicle"))
 
         if error:
             flash(error, "danger")
             return redirect(url_for("add_vehicle"))
 
-        if Vehicle.query.filter_by(vehicle_number=number).first():
+        if plate_taken(number):
             flash("This vehicle number is already registered.", "danger")
             return redirect(url_for("add_vehicle"))
 
@@ -497,16 +509,19 @@ def edit_vehicle(vehicle_id):
             request.form.get("priority"), current=vehicle.priority
         )
 
-        if not number or not vtype:
+        if not normalize_plate(number) or not vtype:
             flash("Please fill all fields.", "danger")
+            return redirect(url_for("edit_vehicle", vehicle_id=vehicle_id))
+
+        if vtype not in VEHICLE_TYPES:
+            flash("Invalid vehicle type.", "danger")
             return redirect(url_for("edit_vehicle", vehicle_id=vehicle_id))
 
         if error:
             flash(error, "danger")
             return redirect(url_for("edit_vehicle", vehicle_id=vehicle_id))
 
-        existing = Vehicle.query.filter_by(vehicle_number=number).first()
-        if existing and existing.id != vehicle.id:
+        if plate_taken(number, exclude_id=vehicle.id):
             flash("This vehicle number is already registered.", "danger")
             return redirect(url_for("edit_vehicle", vehicle_id=vehicle_id))
 
@@ -530,7 +545,6 @@ def delete_vehicle(vehicle_id):
     if vehicle is None or vehicle.user_id != current_user.id:
         abort(404)
 
-    # Member 4: parked vehicle delete nahi hoga (record toot jayega)
     still_parked = ParkingRecord.query.filter(
         ParkingRecord.vehicle_id == vehicle.id,
         ParkingRecord.exit_time.is_(None),
@@ -539,7 +553,6 @@ def delete_vehicle(vehicle_id):
         flash("This vehicle is currently parked. Exit it first.", "danger")
         return redirect(url_for("vehicles"))
 
-    # Payment pending hai to bhi delete nahi hogi (receipt toot jayegi)
     if vehicle.id in waiting_vehicle_ids():
         flash("This vehicle is in the waiting list. Leave the queue first.", "danger")
         return redirect(url_for("vehicles"))
@@ -561,7 +574,6 @@ def delete_vehicle(vehicle_id):
     return redirect(url_for("vehicles"))
 
 
-# ---------------- PARKING SLOTS (Member 3) ----------------
 
 @app.route("/slots")
 @login_required
@@ -574,7 +586,6 @@ def slots():
         type_filter = ""
     all_slots = query.order_by(ParkingSlot.slot_number).all()
 
-    # har type ki kitni slots abhi khali hain
     free_by_type = {t: 0 for t in SLOT_TYPES}
     for s in ParkingSlot.query.filter_by(status="available").all():
         t = (s.slot_type or "normal").lower()
@@ -593,11 +604,15 @@ def slots():
 def add_slot():
     if request.method == "POST":
         number = request.form["slot_number"].strip().upper()
-        stype = request.form["slot_type"].strip()
+        stype = request.form["slot_type"].strip().lower()
         distance = request.form["distance"].strip()
 
         if not number or not stype or not distance:
             flash("Please fill all fields.", "danger")
+            return redirect(url_for("add_slot"))
+
+        if stype not in SLOT_TYPES:
+            flash("Invalid slot type.", "danger")
             return redirect(url_for("add_slot"))
 
         try:
@@ -638,11 +653,15 @@ def edit_slot(slot_id):
 
     if request.method == "POST":
         number = request.form["slot_number"].strip().upper()
-        stype = request.form["slot_type"].strip()
+        stype = request.form["slot_type"].strip().lower()
         distance = request.form["distance"].strip()
 
         if not number or not stype or not distance:
             flash("Please fill all fields.", "danger")
+            return redirect(url_for("edit_slot", slot_id=slot_id))
+
+        if stype not in SLOT_TYPES:
+            flash("Invalid slot type.", "danger")
             return redirect(url_for("edit_slot", slot_id=slot_id))
 
         try:
@@ -706,6 +725,17 @@ def update_slot_status(slot_id):
         flash("Invalid status.", "danger")
         return redirect(url_for("slots"))
 
+    car_inside = ParkingRecord.query.filter(
+        ParkingRecord.slot_id == slot.id,
+        ParkingRecord.exit_time.is_(None),
+    ).first()
+    if car_inside and new_status != "occupied":
+        flash(
+            f"Slot {slot.slot_number} has a vehicle parked in it. Exit the vehicle first.",
+            "danger",
+        )
+        return redirect(url_for("slots"))
+
     slot.status = new_status
     db.session.commit()
 
@@ -715,11 +745,10 @@ def update_slot_status(slot_id):
     return redirect(url_for("slots"))
 
 
-# ---------------- ENTRY / EXIT / FEE (Member 4) ----------------
 
-FIRST_HOUR_FEE = 50       # pehla ghanta
-SECOND_HOUR_FEE = 80      # doosra ghanta
-HOURLY_INCREASE = 0.20    # uske baad har ghante ka rate pichle se 20% zyada
+FIRST_HOUR_FEE = 50       
+SECOND_HOUR_FEE = 80     
+HOURLY_INCREASE = 0.20    
 
 
 def calculate_fee(entry_time, exit_time):
@@ -734,7 +763,6 @@ def calculate_fee(entry_time, exit_time):
         fee += rate
         rate *= 1 + HOURLY_INCREASE
 
-    # Rs.10 ke multiple tak upar round (226 -> 230). round(.., 2) float error se bachata hai.
     fee = math.ceil(round(fee, 2) / 10) * 10
 
     return hours, fee
@@ -779,7 +807,6 @@ def vehicle_entry():
             flash("This vehicle is already in the waiting list.", "danger")
             return redirect(url_for("vehicle_entry"))
 
-        # User khud slot chunta hai. Server pe dobara check: slot abhi bhi available hai?
         slot_id = request.form.get("slot_id", type=int)
         slot = db.session.get(ParkingSlot, slot_id) if slot_id else None
 
@@ -794,13 +821,24 @@ def vehicle_entry():
             )
             return redirect(url_for("vehicle_entry"))
 
-        record = ParkingRecord(
-            vehicle_id=vehicle.id,
-            slot_id=slot.id,
-            entry_time=datetime.now(),
-        )
-        slot.status = "occupied"
-        db.session.add(record)
+        allowed_types = suitable_slot_types(vehicle.vehicle_type, vehicle.priority or "Normal")
+        if (slot.slot_type or "normal").lower() not in allowed_types:
+            flash(
+                f"A {vehicle.vehicle_type} ({vehicle.priority or 'Normal'}) cannot use a "
+                f"{slot.slot_type} slot. Allowed: {', '.join(allowed_types)}.",
+                "danger",
+            )
+            return redirect(url_for("vehicle_entry"))
+
+        holder = held_slots().get(slot.id)
+        if holder is not None and holder != vehicle.id:
+            flash(
+                f"Slot {slot.slot_number} is reserved for another vehicle right now.",
+                "danger",
+            )
+            return redirect(url_for("vehicle_entry"))
+
+        _park(vehicle, slot)          # also marks the vehicle's own booking as used
         db.session.commit()
 
         flash(
@@ -912,6 +950,10 @@ def checkout(record_id):
     record.exit_time = now
     record.fee = fee
 
+    for b in Booking.query.filter_by(vehicle_id=vehicle.id, status="used").all():
+        if b.start_time - EARLY_ARRIVAL_GRACE <= record.entry_time <= booking_end(b):
+            b.status = "completed"
+
     slot = db.session.get(ParkingSlot, record.slot_id)
     if slot is not None and slot.status == "occupied":
         slot.status = "available"
@@ -927,9 +969,7 @@ def checkout(record_id):
     return redirect(url_for("payment", record_id=record.id))
 
 
-# ---------------- PAYMENT (Phase 11: status + method + paid_at stored in DB) ----------------
 
-# Demo methods only (no real gateway). Values are saved on Payment.method.
 PAYMENT_METHODS = ["Cash", "Card", "JazzCash", "Easypaisa"]
 
 
@@ -1006,7 +1046,6 @@ def payment(record_id):
     )
 
 
-# ---------------- WAITING LIST (Phase 6: Queue + Priority Queue) ----------------
 
 @app.route("/waiting")
 @login_required
@@ -1017,14 +1056,14 @@ def waiting():
         total += 1
         vehicle = db.session.get(Vehicle, entry.vehicle_id)
         if current_user.role != "admin" and vehicle.user_id != current_user.id:
-            continue                      # users only see their own rows
+            continue                      
         base = PRIORITY_RANK.get(vehicle.priority or "Normal", 4)
         rows.append(
             {
                 "position": position,
                 "entry": entry,
                 "vehicle": vehicle,
-                "boost": base - rank,      # aging se kitne darje behtar hua
+                "boost": base - rank,      
             }
         )
     return render_template("waiting.html", rows=rows, total=total)
@@ -1055,7 +1094,6 @@ def process_waiting():
     return redirect(url_for("waiting"))
 
 
-# ---------------- SEARCH (Phase 5: Hash Table) ----------------
 
 @app.route("/search")
 @login_required
@@ -1078,7 +1116,7 @@ def search():
             if vehicle is None:
                 continue
             if not is_admin and vehicle.user_id != current_user.id:
-                continue                  # do not reveal other people's vehicles
+                continue                 
             record = db.session.get(ParkingRecord, hit["record_id"]) if hit["record_id"] else None
             results.append({
                 "vehicle": vehicle,
@@ -1127,7 +1165,6 @@ def search():
     return render_template("search.html", q=q, kind=kind, results=results, info=info)
 
 
-# ---------------- DSA LAB (Phase 5 + 6 visualiser, admin) ----------------
 
 @app.route("/dsa-lab")
 @admin_required
@@ -1173,7 +1210,6 @@ def dsa_lab():
     )
 
 
-# ---------------- ADMIN ----------------
 
 @app.route("/admin/users")
 @admin_required
@@ -1208,7 +1244,6 @@ def set_vehicle_priority(vehicle_id):
 
 
 
-# ---------------- PARKING HISTORY (Phase 7: Sorting) ----------------
 
 HISTORY_SORT_FIELDS = {
     "date": lambda r: r["record"].entry_time,
@@ -1228,7 +1263,6 @@ def history():
     if order not in ("asc", "desc"):
         order = "desc"
 
-    # Sirf wo parking jo khatam ho chuki hai. Admin ko sab, user ko sirf apni.
     query = ParkingRecord.query.filter(ParkingRecord.exit_time.isnot(None))
     if current_user.role != "admin":
         query = query.join(
@@ -1259,7 +1293,6 @@ def history():
         total_fee=total_fee,
     )
 
-# ---------------- RESERVATIONS (Phase 7) ----------------
 
 @app.route("/reservations")
 @login_required
@@ -1356,7 +1389,6 @@ def cancel_reservation(booking_id):
     flash("Reservation cancelled.", "success")
     return redirect(url_for("reservations"))
 
-# ---------------- QR TICKET  ----------------
 
 def make_qr_svg(data):
     img = qrcode.make(
@@ -1399,7 +1431,6 @@ def ticket(record_id):
         qr_svg=make_qr_svg(qr_text),
     )
 
-# ---------------- OVERSTAY ----------------
 
 @app.route("/overstay")
 @login_required
@@ -1415,7 +1446,7 @@ def overstay():
     for record in query.order_by(ParkingRecord.exit_time.desc()).all():
         info = overstay_info(record, booking_table)
         if info is None:
-            continue          # is parking ki koi reservation nahi thi
+            continue         
         rows.append(
             {
                 "vehicle": db.session.get(Vehicle, record.vehicle_id),
@@ -1435,7 +1466,6 @@ def overstay():
         rate=OVERSTAY_RATE_PER_HOUR,
     )
 
-# ---------------- ROUTE FINDER (Phase 8: BFS + Dijkstra) ----------------
 
 @app.route("/route")
 @login_required
@@ -1451,18 +1481,16 @@ def route_finder():
         "route.html", slots=all_slots, target=target, result=result
     )
 
-# ---------------- ADMIN DASHBOARD (Phase 8) ----------------
 
 def _render_admin_dashboard():
     """Shared logic so both /dashboard (for admin) and /admin/dashboard show the same page."""
     now = datetime.now()
 
-    # slot status counts
     status_counts = {}
     for status in VALID_SLOT_STATUSES:
         status_counts[status] = ParkingSlot.query.filter_by(status=status).count()
 
-    # money
+    
     total_paid = sum(
         p.amount for p in Payment.query.filter_by(status="paid").all()
     )
@@ -1470,7 +1498,6 @@ def _render_admin_dashboard():
         p.amount for p in Payment.query.filter_by(status="pending").all()
     )
 
-    # overstay extra fee (from finished parkings that had a booking)
     booking_table = bookings_by_vehicle()
     overstay_total = 0
     overstay_count = 0
@@ -1482,7 +1509,6 @@ def _render_admin_dashboard():
             overstay_count += 1
             overstay_total += info["extra_fee"]
 
-    # last 5 exits
     recent = []
     last_exits = (
         ParkingRecord.query.filter(ParkingRecord.exit_time.isnot(None))
@@ -1525,7 +1551,6 @@ def _render_admin_dashboard():
 @app.route("/admin/dashboard")
 @admin_required
 def admin_dashboard():
-    # Same page as Dashboard for admins – keep URL for bookmarks / menu links
     return _render_admin_dashboard()
 
 if __name__ == "__main__":

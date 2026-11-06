@@ -26,9 +26,7 @@ class HashTable:
         self._size = 0
         self._max_load = max_load
         self.resize_count = 0
-        self.last_probes = 0      # how many chain nodes the last get() looked at
-
-    # ---------- hash function ----------
+        self.last_probes = 0     
     def _hash(self, key):
         """djb2 string hash: h = h * 33 + character."""
         h = 5381
@@ -36,7 +34,6 @@ class HashTable:
             h = (h * 33 + ord(ch)) & 0xFFFFFFFF
         return h % self._capacity
 
-    # ---------- core operations ----------
     def put(self, key, value):
         """Insert a key, or overwrite its value if the key already exists."""
         idx = self._hash(key)
@@ -47,7 +44,6 @@ class HashTable:
                 return
             node = node.next
 
-        # new key goes at the head of the chain (O(1))
         self._buckets[idx] = _Node(key, value, self._buckets[idx])
         self._size += 1
 
@@ -88,7 +84,6 @@ class HashTable:
         sentinel = object()
         return self.get(key, sentinel) is not sentinel
 
-    # ---------- resizing ----------
     def _resize(self):
         """Double the number of buckets and re-insert every node."""
         old = self._buckets
@@ -102,7 +97,6 @@ class HashTable:
                 self.put(node.key, node.value)
                 node = node.next
 
-    # ---------- helpers ----------
     def items(self):
         for head in self._buckets:
             node = head

@@ -30,7 +30,6 @@ def admin_only(f):
     return wrapper
 
 
-# ---------------- helpers ----------------
 
 def parse_date(raw):
     try:
@@ -147,7 +146,6 @@ SORT_FIELDS = {
 }
 
 
-# ---------------- routes ----------------
 
 @reports_bp.route("/reports")
 @admin_only
@@ -159,7 +157,7 @@ def revenue_report():
     rows = payment_rows(start=f["start"], end=f["end"])
 
     periods = revenue_by_period(rows, period)
-    periods.reverse()                       # newest first
+    periods.reverse()                       
 
     by_method = defaultdict(lambda: {"amount": 0, "count": 0})
     for r in rows:

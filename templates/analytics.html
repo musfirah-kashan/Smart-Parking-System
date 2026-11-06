@@ -1,3 +1,4 @@
+<!-- language: lang-html -->
 {% extends "base.html" %}
 
 {% block title %}Analytics{% endblock %}
@@ -145,19 +146,19 @@ Chart.defaults.color = "#64748B";
 Chart.defaults.responsive = true;
 Chart.defaults.maintainAspectRatio = false;
 
-const STATUSES = {{ statuses|tojson }};
+const STATUSES = {{ statuses|tojson|safe }};
 const COLORS = {
   available: "#059669",
   occupied: "#DC2626",
   reserved: "#D97706",
   maintenance: "#64748B"
 };
-const counts = {{ counts|tojson }};
+const counts = {{ counts|tojson|safe }};
 
 const chartOpts = {
   responsive: true,
   maintainAspectRatio: false,
-  animation: false,          // stops re-layout jank on refresh
+  animation: false,
   plugins: {
     legend: { position: "bottom" }
   }
@@ -178,10 +179,10 @@ const occChart = new Chart(document.getElementById("occChart"), {
 new Chart(document.getElementById("revChart"), {
   type: "line",
   data: {
-    labels: {{ rev_labels|tojson }},
+    labels: {{ rev_labels|tojson|safe }},
     datasets: [{
       label: "Paid (Rs)",
-      data: {{ rev_values|tojson }},
+      data: {{ rev_values|tojson|safe }},
       borderColor: "#F97316",
       backgroundColor: "rgba(249,115,22,0.12)",
       tension: 0.3,
@@ -203,7 +204,7 @@ new Chart(document.getElementById("hourChart"), {
     labels: Array.from({length: 24}, (_, h) => h + ":00"),
     datasets: [{
       label: "Entries",
-      data: {{ per_hour|tojson }},
+      data: {{ per_hour|tojson|safe }},
       backgroundColor: "#2563EB",
       borderRadius: 4
     }]
@@ -220,10 +221,10 @@ new Chart(document.getElementById("hourChart"), {
 new Chart(document.getElementById("popChart"), {
   type: "bar",
   data: {
-    labels: {{ popular|map(attribute="slot")|list|tojson }},
+    labels: {{ popular|map(attribute="slot")|list|tojson|safe }},
     datasets: [{
       label: "Times used",
-      data: {{ popular|map(attribute="count")|list|tojson }},
+      data: {{ popular|map(attribute="count")|list|tojson|safe }},
       backgroundColor: "#0891B2",
       borderRadius: 4
     }]
@@ -259,7 +260,6 @@ async function refresh() {
     if (!res.ok) return;
     const d = await res.json();
     drawGrid(d.slots);
-    // update only data – no full resize/recreate (this was causing shrink)
     occChart.data.datasets[0].data = STATUSES.map(s => d.counts[s] || 0);
     occChart.update("none");
     document.getElementById("occ-pct").textContent = d.occupancy + "%";

@@ -16,7 +16,6 @@ class MinHeap:
     def __init__(self):
         self._a = []
 
-    # ---------- public API ----------
     def push(self, key, value=None):
         self._a.append((key, value))
         self._sift_up(len(self._a) - 1)
@@ -58,7 +57,6 @@ class MinHeap:
         clone._a = list(self._a)
         return clone
 
-    # ---------- for the visualiser ----------
     def to_list(self):
         """The raw array, exactly as stored."""
         return list(self._a)
@@ -73,7 +71,6 @@ class MinHeap:
             width *= 2
         return out
 
-    # ---------- internals ----------
     def _sift_up(self, i):
         a = self._a
         while i > 0:

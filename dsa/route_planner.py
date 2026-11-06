@@ -7,7 +7,7 @@ from .graph import Graph
 
 ROADS = [
     ("Entrance", "A", 10),
-    ("Entrance", "C", 100),   # long direct road, so BFS and Dijkstra differ
+    ("Entrance", "C", 100),  
     ("A", "B", 20),
     ("A", "C", 15),
     ("B", "D", 10),

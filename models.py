@@ -19,7 +19,7 @@ class Vehicle(db.Model):
         db.String(20), unique=True, nullable=False
     )
     vehicle_type = db.Column(db.String(30), nullable=False)
-    # Phase 6: Emergency / Disabled / EV / VIP / Normal
+
     priority = db.Column(db.String(20), default="Normal")
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
 
@@ -61,7 +61,6 @@ class Payment(db.Model):
     )
     amount = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20), default="pending")
-    # Phase 11: when it was paid and with what (Cash / Card / JazzCash / Easypaisa)
     paid_at = db.Column(db.DateTime)
     method = db.Column(db.String(20))
 
@@ -70,7 +69,6 @@ class WaitingEntry(db.Model):
     """A vehicle standing in the waiting list because parking was full (Phase 6)."""
     id = db.Column(db.Integer, primary_key=True)
     vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"))
-    # waiting -> assigned (got a slot) or cancelled (left the queue)
     status = db.Column(db.String(20), default="waiting")
     joined_at = db.Column(db.DateTime)
     assigned_at = db.Column(db.DateTime)
@@ -83,6 +81,5 @@ class Booking(db.Model):
     slot_id = db.Column(db.Integer, db.ForeignKey("parking_slot.id"))
     start_time = db.Column(db.DateTime, nullable=False)
     duration_hours = db.Column(db.Integer, default=1)
-    # active -> used (vehicle checked in) or cancelled
     status = db.Column(db.String(20), default="active")
     created_at = db.Column(db.DateTime)
