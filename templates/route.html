@@ -3,7 +3,8 @@
 {% block title %}Route Finder{% endblock %}
 
 {% block content %}
-<h3 class="mb-3">Route to a Parking Slot</h3>
+<h3 class="mb-3"><i class="bi bi-diagram-3 me-2"></i>Route to a Parking Slot</h3>
+<p class="text-muted">Select a slot to see the shortest path from the Entrance. The graph below highlights the chosen route and all nodes from the database.</p>
 
 <form method="GET" class="row g-2 mb-4">
     <div class="col-auto">
@@ -15,32 +16,57 @@
         </select>
     </div>
     <div class="col-auto">
-        <button type="submit" class="btn btn-primary">Find route</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search me-1"></i>Find route
+        </button>
     </div>
 </form>
 
 {% if result %}
-<div class="alert alert-success">
-    Your slot is <strong>{{ target }}</strong>. Shortest route:
-    <strong>{{ result.dij_path | join(' → ') }}</strong> ({{ result.dij_m }} m)
+<div class="alert alert-success d-flex align-items-center">
+    <i class="bi bi-check-circle-fill me-2 fs-4"></i>
+    <div>
+        Your slot is <strong>{{ target }}</strong>. Shortest route (Dijkstra):
+        <strong>{{ result.dij_path | join(' → ') }}</strong> ({{ result.dij_m }} m)
+    </div>
 </div>
 
-<table class="table table-bordered bg-white">
-    <thead>
-        <tr><th>Algorithm</th><th>Route</th><th>Distance</th></tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>BFS (fewest roads)</td>
-            <td>{{ result.bfs_path | join(' → ') }}</td>
-            <td>{{ result.bfs_m }} m</td>
-        </tr>
-        <tr>
-            <td>Dijkstra (shortest distance)</td>
-            <td>{{ result.dij_path | join(' → ') }}</td>
-            <td>{{ result.dij_m }} m</td>
-        </tr>
-    </tbody>
-</table>
+<div class="row mb-4">
+    <div class="col-md-6">
+        <table class="table table-bordered bg-white shadow-sm">
+            <thead class="table-light">
+                <tr><th>Algorithm</th><th>Route</th><th>Distance</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge bg-info">BFS</span> (fewest roads)</td>
+                    <td>{{ result.bfs_path | join(' → ') }}</td>
+                    <td>{{ result.bfs_m }} m</td>
+                </tr>
+                <tr>
+                    <td><span class="badge bg-success">Dijkstra</span> (shortest distance)</td>
+                    <td class="fw-bold text-success">{{ result.dij_path | join(' → ') }}</td>
+                    <td class="fw-bold">{{ result.dij_m }} m</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h6 class="card-title">How it works</h6>
+                <ul class="mb-0 small">
+                    <li><strong>BFS</strong> → fewest number of roads (ignores distance)</li>
+                    <li><strong>Dijkstra</strong> → shortest total distance in metres</li>
+                    <li>Slots come from the database and attach to sections D / E / F</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Graph visualization lives in its own partial file #}
+{% include "partials/route_graph.html" %}
+
 {% endif %}
 {% endblock %}

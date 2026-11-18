@@ -1,0 +1,41 @@
+{# Parking Lot Graph Visualization – schematic diagram style #}
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-diagram-3 me-2"></i>Parking Lot Graph</span>
+        <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-primary active" id="btnDij" onclick="showRoutePath('dij')">
+                Dijkstra
+            </button>
+            <button type="button" class="btn btn-outline-warning" id="btnBfs" onclick="showRoutePath('bfs')">
+                BFS
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btnBoth" onclick="showRoutePath('both')">
+                Both
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-2" style="background:#fefaf3;">
+        <div id="routeGraph" style="width:100%; height:480px; overflow:hidden;"></div>
+    </div>
+    <div class="card-footer bg-white small">
+        <div class="d-flex flex-wrap gap-3 text-muted">
+            <span><span style="color:#ea580c;font-weight:bold">━━</span> BFS path (fewest roads)</span>
+            <span><span style="color:#2563eb;font-weight:bold">━━</span> Dijkstra path (shortest distance)</span>
+            <span>🚗 = Parking slot from DB</span>
+            <span class="text-danger fw-semibold">Red box = selected target</span>
+        </div>
+    </div>
+</div>
+
+<script>
+  window.ROUTE_GRAPH_DATA = {
+    nodes: {{ result.nodes | tojson }},
+    edges: {{ result.edges | tojson }},
+    dij_path: {{ result.dij_path | tojson }},
+    bfs_path: {{ result.bfs_path | tojson }},
+    bfs_m: {{ result.bfs_m | tojson }},
+    dij_m: {{ result.dij_m | tojson }},
+    target: {{ target | tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/route_graph.js') }}"></script>
